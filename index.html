@@ -6240,70 +6240,51 @@ function _parseDorarHTML(html){
 }
 
 function _renderDorarResults(results, query, resultDiv){
-  if(!results||!results.length){
-    _mizanNotFound(query, resultDiv);
-    return;
-  }
-  // Trouver le meilleur résultat (préférer Al-Albani)
-  var best = results.find(function(r){ return /الألباني/.test(r.muhaddith); }) || results[0];
-  var g = _parseDorarGrade(best.hukm);
-  var gradeLabels = {
-    'SAHIH':       '\u0635\u062d\u064a\u062d \u2014 Authentique',
-    'HASAN':       '\u062d\u0633\u0646 \u2014 Bon',
-    "DA'IF":       '\u0636\u0639\u064a\u0641 \u2014 Faible',
-    "DA'IF JIDDAN":'\u0636\u0639\u064a\u0641 \u062c\u062f\u0627\u064b \u2014 Très faible',
-    'MAWDU':       '\u0645\u0648\u0636\u0648\u0639 \u2014 Inventé',
-    'BATIL':       '\u0628\u0627\u0637\u0644 \u2014 Faux',
-    'MUNKAR':      '\u0645\u0646\u0643\u0631 \u2014 Rejeté',
-    'INCONNU':     'Verdict inconnu'
-  };
-  var gradeLabel = gradeLabels[g.grade] || g.grade;
-
-  // Autres verdicts
-  var othersHTML = '';
-  var seen = {};
+  if(!results||!results.length){ _mizanNotFound(query, resultDiv); return; }
+  var best = results.find(function(r){ return /\u0627\u0644\u0623\u0644\u0628\u0627\u0646\u064a/.test(r.muhaddith); }) || results[0];
+  var gObj = _parseDorarGrade(best.hukm);
+  var g = gObj.grade;
+  var gradeKey = (g === "DA'IF") ? 'DAIF' : (g === "DA'IF JIDDAN") ? 'DAIF_JIDDAN' : g;
+  var col = (_GC && _GC[gradeKey]) ? _GC[gradeKey] : gObj.color;
+  var badge = '<span style="font-family:Cinzel,serif;font-size:5px;letter-spacing:.12em;padding:3px 7px;border-radius:99px;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.2);color:rgba(201,168,76,.8);white-space:nowrap;">DORAR.NET</span>';
+  var ref = (best.masdar||'') + (best.raqm ? ' \u2014 n\u00b0' + best.raqm : '');
+  var verdictBottom = _mzVerdictBottom(col, best.hukm, (_GFR&&_GFR[gradeKey])||g, ref);
+  var textBlock = best.text
+    ? '<div style="background:rgba(8,5,0,.55);border:1px solid rgba(201,168,76,.08);border-radius:12px;padding:13px 15px;margin-bottom:10px;">'
+      + '<p style="font-family:Scheherazade New,serif;font-size:20px;color:rgba(240,220,160,.9);direction:rtl;text-align:right;line-height:1.9;">' + best.text + '</p>'
+      + (best.rawi ? '<p style="font-family:Cinzel,serif;font-size:6.5px;color:rgba(201,168,76,.4);margin-top:8px;letter-spacing:.08em;">\u0627\u0644\u0631\u0627\u0648\u064a: ' + best.rawi + '</p>' : '')
+      + '</div>' : '';
+  var othersHTML = ''; var seen = {};
   results.forEach(function(r){
-    if(r===best || seen[r.muhaddith]) return;
-    seen[r.muhaddith]=1;
-    var og=_parseDorarGrade(r.hukm);
-    othersHTML += '<div style="margin:4px 0;font-size:11px;color:#ccc;direction:rtl;">'
-      + '<span style="color:'+og.color+';font-weight:bold;">'+og.grade+'</span>'
-      + ' &mdash; ' + r.muhaddith + ' (<em>' + r.masdar + (r.raqm?' n\u00b0'+r.raqm:'') + '</em>)'
+    if(r === best || seen[r.muhaddith]) return; seen[r.muhaddith] = 1;
+    var og = _parseDorarGrade(r.hukm);
+    var oc = (_GC && _GC[og.grade === "DA'IF" ? 'DAIF' : og.grade]) || og.color;
+    othersHTML += '<div style="padding:8px 0;border-bottom:1px solid rgba(201,168,76,.05);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">'
+      + '<span style="font-family:Cinzel,serif;font-size:7.5px;color:rgba(201,168,76,.75);">' + r.muhaddith + '</span>'
+      + '<span style="font-family:Cinzel,serif;font-size:6px;padding:2px 7px;border-radius:99px;background:' + oc + '18;border:1px solid ' + oc + '38;color:' + oc + ';">' + og.grade + '</span>'
+      + '</div>'
+      + '<p style="font-family:Cormorant Garamond,serif;font-size:12px;color:rgba(200,175,110,.6);font-style:italic;direction:rtl;">' + r.hukm + '</p>'
+      + (r.masdar ? '<p style="font-family:Cinzel,serif;font-size:6px;color:rgba(201,168,76,.35);margin-top:2px;">' + r.masdar + (r.raqm?' n\u00b0'+r.raqm:'') + '</p>' : '')
       + '</div>';
   });
-
-  var html2 = '<div style="direction:rtl;font-family:\'Amiri\',serif;line-height:1.9;font-size:15px;color:#f0dca0;margin-bottom:12px;">'
-    + best.text + '</div>'
-    + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">'
-    + '<span style="background:'+g.color+';color:#fff;font-weight:bold;padding:4px 14px;border-radius:20px;font-size:13px;">'+g.grade+'</span>'
-    + '<span style="color:#c9a84c;font-size:13px;">'+gradeLabel+'</span>'
-    + '</div>'
-    + '<div style="font-size:12px;color:#bbb;margin-bottom:8px;">'
-    + (best.rawi?'<span style="color:#e8c97a;">\u0627\u0644\u0631\u0627\u0648\u064a:</span> '+best.rawi+' &nbsp;':'')
-    + (best.muhaddith?'<span style="color:#e8c97a;">\u0627\u0644\u0645\u062d\u062f\u0651\u062b:</span> '+best.muhaddith+' &nbsp;':'')
-    + '</div>'
-    + '<div style="font-size:12px;color:#bbb;margin-bottom:8px;">'
-    + (best.masdar?'<span style="color:#e8c97a;">\u0627\u0644\u0645\u0635\u062f\u0631:</span> '+best.masdar+'':'')
-    + (best.raqm?' \u2014 n\u00b0'+best.raqm:'')
-    + '</div>'
-    + '<div style="font-size:11px;color:#999;margin-bottom:8px;direction:rtl;">'
-    + '\u062e\u0644\u0627\u0635\u0629 \u0627\u0644\u062d\u0643\u0645: <strong style="color:'+g.color+';">'+best.hukm+'</strong>'
-    + '</div>'
-    + (othersHTML?'<details style="margin-top:8px;"><summary style="color:#c9a84c;cursor:pointer;font-size:11px;">Autres verdicts ('+results.length+')</summary>'
-      + '<div style="margin-top:6px;">'+othersHTML+'</div></details>':'')
-    + '<div style="margin-top:10px;text-align:right;">'
-    + '<a href="https://dorar.net/hadith/search?q='+encodeURIComponent(query)+'" target="_blank" '
-    + 'style="color:#c9a84c;font-size:11px;text-decoration:none;">🔗 Voir sur Dorar.net</a>'
+  var divergBlock = othersHTML
+    ? '<div style="background:rgba(8,5,0,.45);border:1px solid rgba(245,158,11,.1);border-radius:12px;padding:13px 15px;margin-bottom:10px;">'
+      + '<p style="font-family:Cinzel,serif;font-size:5.5px;letter-spacing:.28em;color:rgba(245,158,11,.45);margin-bottom:9px;">\u2696 TAKHR\u00ceJ \u2014 AUTRES VERDICTS</p>'
+      + othersHTML + '</div>' : '';
+  var linksBlock = '<div style="display:flex;gap:7px;">'
+    + '<a href="https://dorar.net/hadith/search?q=' + encodeURIComponent(query) + '" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 12px;background:rgba(201,168,76,.05);border:1px solid rgba(201,168,76,.14);border-radius:10px;color:var(--gold);font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.1em;text-decoration:none;">DORAR.NET</a>'
+    + '<a href="https://sunnah.com" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 12px;background:rgba(201,168,76,.05);border:1px solid rgba(201,168,76,.14);border-radius:10px;color:var(--gold);font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.1em;text-decoration:none;">SUNNAH</a>'
     + '</div>';
-
+  var html2 = '<div style="animation:_mzFI .35s ease both;">'
+    + _mzDisclaimer('R\u00e9sultat en direct depuis Dorar.net via proxy Cloudflare.')
+    + _mzGradeCard(gradeKey, col, badge, verdictBottom)
+    + textBlock + divergBlock + linksBlock + '</div>';
   resultDiv.innerHTML = html2;
-  var rb = document.getElementById('result-box');
-  if(rb) rb.classList.add('active');
-  var ctDiv=document.getElementById('clause-traduction'); if(ctDiv) ctDiv.style.display='block';
-  var lb = document.getElementById('loading-box');
-  if(lb) lb.style.display='none';
-  var es = document.getElementById('examples-section');
-  if(es) es.style.display='none';
+  window._mizanCopyData = {grade:gradeKey, ar:best.text, fr:'', ref:ref, verdict:(_GFR&&_GFR[gradeKey])||g};
+  var rb = document.getElementById('result-box'); if(rb) rb.classList.add('active');
+  var lb = document.getElementById('loading-box'); if(lb) lb.style.display='none';
+  var es = document.getElementById('examples-section'); if(es) es.style.display='none';
 }
 
 function analyzeHadith(txt){
