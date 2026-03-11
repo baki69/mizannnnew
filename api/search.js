@@ -3,7 +3,7 @@ const cheerio = require("cheerio");
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Converts HTML to text while inserting spaces between elements to prevent word merging
+// Insère un espace à la place de chaque balise pour éviter la fusion des mots
 function htmlToText(html) {
   return html
     .replace(/<[^>]+>/g, " ")
@@ -14,6 +14,31 @@ function htmlToText(html) {
     .replace(/&#\d+;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Lit les champs d'un div.hadith-info en naviguant le DOM nœud par nœud
+function parseHadithInfo($, infoEl) {
+  const fields = {};
+  let currentLabel = null;
+
+  $(infoEl).contents().each((_, node) => {
+    if (node.type === "tag" && $(node).hasClass("info-subtitle")) {
+      currentLabel = $(node).text().replace(/:\s*$/, "").trim();
+    } else if (currentLabel) {
+      let val = "";
+      if (node.type === "text") {
+        val = node.data.trim();
+      } else if (node.type === "tag") {
+        val = $(node).text().trim();
+      }
+      if (val) {
+        fields[currentLabel] = val;
+        currentLabel = null;
+      }
+    }
+  });
+
+  return fields;
 }
 
 module.exports = async (req, res) => {
@@ -34,48 +59,51 @@ module.exports = async (req, res) => {
     });
     const arabicQuery = promptAr.content[0].text.trim();
 
-    // 2. Fetch Dorar via scrape.do
-    const targetUrl = "https://www.dorar.net/hadith/search?q=" + encodeURIComponent(arabicQuery);
-    const scraperUrl = "https://api.scrape.do?token=" + process.env.SCRAPER_TOKEN + "&url=" + encodeURIComponent(targetUrl) + "&geoCode=de";
-
-    const response = await fetch(scraperUrl, { signal: AbortSignal.timeout(5000) });
-    if (!response.ok) throw new Error("Erreur Proxy/Dorar " + response.status);
-
-    const html = await response.text();
-    const $ = cheerio.load(html);
-
-    // 3. Collect all candidate divs, sort by length (shortest = most specific = innermost)
-    const candidates = [];
-    $("div").each((_, el) => {
-      const text = htmlToText($(el).html() || "");
-      if (text.includes("خلاصة حكم المحدث") && /ﷺ|صلى الله عليه وسلم/.test(text)) {
-        candidates.push(text);
-      }
+    // 2. Appel direct dorar_api.json (plus besoin de scrape.do)
+    const apiUrl = "https://dorar.net/dorar_api.json?skey=" + encodeURIComponent(arabicQuery);
+    const response = await fetch(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://dorar.net/"
+      },
+      signal: AbortSignal.timeout(6000)
     });
-    candidates.sort((a, b) => a.length - b.length);
+    if (!response.ok) throw new Error("Dorar API error " + response.status);
 
-    // 4. Deduplicate: skip any element whose text contains an already-accepted one (parent divs)
+    const json = await response.json();
+    const htmlResult = json?.ahadith?.result;
+    if (!htmlResult) return res.status(200).json({ found: false, query: arabicQuery, results: [] });
+
+    // 3. Parsing avec sélecteurs confirmés : div.hadith + div.hadith-info
+    const $ = cheerio.load(htmlResult);
     const rawResults = [];
-    for (const text of candidates) {
-      if (rawResults.length >= 3) break;
-      const alreadyCovered = rawResults.some(r => text.includes(r.arabic_text.substring(0, 40)));
-      if (alreadyCovered) continue;
 
-      const grade  = (text.match(/خلاصة حكم المحدث\s*:\s*([^|،\n]+)/) || [null, ""])[1].trim();
-      const savant = (text.match(/المحدث\s*:\s*([^|،\n]+)/)            || [null, ""])[1].trim();
-      const source = (text.match(/المصدر\s*:\s*([^|،\n]+)/)            || [null, ""])[1].trim();
-      const arabic_text = text.split("الراوي")[0].replace(/^\d+\s*[-–]\s*/, "").trim();
+    $("div.hadith-info").each((_, infoEl) => {
+      if (rawResults.length >= 3) return false;
+
+      const fields = parseHadithInfo($, infoEl);
+      const grade  = fields["خلاصة حكم المحدث"] || "";
+      const savant = fields["المحدث"]             || "";
+      const source = fields["المصدر"]             || "";
+      const rawi   = fields["الراوي"]             || "";
+
+      // Texte du hadith : div.hadith qui précède immédiatement ce div.hadith-info
+      const hadithHtml = $(infoEl).prev("div.hadith").html() || "";
+      const arabic_text = htmlToText(hadithHtml)
+        .replace(/^\d+\s*[-–]\s*/, "")
+        .trim();
 
       if (arabic_text.length > 20 && grade) {
-        rawResults.push({ arabic_text, grade, savant, source });
+        rawResults.push({ arabic_text, grade, savant, source, rawi });
       }
-    }
+    });
 
     if (rawResults.length === 0) {
       return res.status(200).json({ found: false, query: arabicQuery, results: [] });
     }
 
-    // 5. Traduction AR -> FR — demande un tableau JSON pour un parsing fiable
+    // 4. Traduction AR -> FR — SYSTEM_PROMPT Salaf As-Salih, réponse JSON forcée
     const textsToTranslate = rawResults.map((r, i) => "[" + i + "] " + r.arabic_text).join("\n\n");
 
     const promptFr = await client.messages.create({
@@ -85,7 +113,7 @@ module.exports = async (req, res) => {
       messages: [{ role: "user", content: "Traduis ces hadiths en francais :\n\n" + textsToTranslate }]
     });
 
-    // 6. Parse la reponse JSON de l'IA avec fallback
+    // 5. Parse la réponse JSON avec fallback sur marqueurs [0], [1]...
     const translations = {};
     try {
       const raw = promptFr.content[0].text;
@@ -98,7 +126,6 @@ module.exports = async (req, res) => {
         });
       }
     } catch (_) {
-      // Fallback: decouper par marqueurs [0], [1], [2]
       promptFr.content[0].text.split(/(?=\[\d+\])/).forEach(chunk => {
         const m = chunk.match(/^\[(\d+)\]\s*([\s\S]+)/);
         if (m) translations[parseInt(m[1])] = m[2].trim();
@@ -110,6 +137,7 @@ module.exports = async (req, res) => {
       grade:       r.grade,
       savant:      r.savant,
       source:      r.source,
+      rawi:        r.rawi,
       french_text: (translations[i] || "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim()
     }));
 
