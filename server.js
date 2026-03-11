@@ -87,6 +87,8 @@ const server = http.createServer(async (req, res) => {
   res.end('Not found');
 });
 
-server.listen(PORT, () => {
+server.on('error', (err) => { console.error('Server error:', err); process.exit(1); });
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log('Server running on port ' + PORT);
 });
