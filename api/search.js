@@ -86,7 +86,7 @@ module.exports = async (req, res) => {
 
     // 2. Appel direct dorar_api.json
     const apiUrl =
-      "https://dorar.net/dorar_api.json?skey=" +
+      "https://www.dorar.net/hadith/search?q=" +
       encodeURIComponent(arabicQuery);
     const dorarRes = await fetch(apiUrl, {
       headers: {
