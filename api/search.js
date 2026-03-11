@@ -110,21 +110,22 @@ module.exports = async (req, res) => {
     const $ = cheerio.load(htmlResult);
     const rawResults = [];
 
-    $("div.hadith-info").each((_, infoEl) => {
-      const fields = parseHadithInfo($, infoEl);
-      const grade  = fields["خلاصة حكم المحدث"] || "";
-      const savant = fields["المحدث"] || "";
-      const source = fields["المصدر"] || "";
-      const rawi   = fields["الراوي"] || "";
-      // div.hadith précède immédiatement div.hadith-info
-      const arabic_text = htmlToText(
-        $(infoEl).prev("div.hadith").html() || ""
-      )
-        .replace(/^\d+\s*[-–]\s*/, "")
-        .trim();
-      if (arabic_text.length > 20 && grade) {
-        rawResults.push({ arabic_text, grade, savant, source, rawi });
-      }
+    const seen = new Set();
+    $("*").each((i, el) => {
+      if (rawResults.length >= 5) return false;
+      const text = $(el).text().trim();
+      if (!text.includes("خلاصة حكم المحدث")) return;
+      if (!/ﷺ|صلى الله عليه وسلم/.test(text)) return;
+      if (text.length > 800 || text.length < 50) return;
+      const key = text.substring(0, 60);
+      if (seen.has(key)) return;
+      seen.add(key);
+      const gradeMatch  = text.match(/خلاصة حكم المحدث\s*:\s*([^\n\r|]{3,40})/);
+      const savantMatch = text.match(/المحدث\s*:\s*([^|\n\r]{3,30})/);
+      const sourceMatch = text.match(/المصدر\s*:\s*([^|\n\r]{3,30})/);
+      const arabic_text = text.split("خلاصة حكم المحدث")[0].replace(/\s+/g, " ").trim().substring(0, 400);
+      if (arabic_text.length < 20) return;
+      rawResults.push({ arabic_text, savant: savantMatch?.[1].trim()||"", grade: gradeMatch?.[1].trim()||"", source: sourceMatch?.[1].trim()||"" });
     });
 
     if (rawResults.length === 0)
