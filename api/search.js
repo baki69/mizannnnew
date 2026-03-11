@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
     if (!dorarRes.ok) throw new Error("Dorar API error " + dorarRes.status);
 
     const json = await dorarRes.json();
-    const htmlResult = json?.ahadith?.result;
+    const htmlResult = json?.ahadith;
     if (!htmlResult)
       return res
         .status(200)
