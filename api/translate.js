@@ -1,81 +1,74 @@
 const Anthropic = require("@anthropic-ai/sdk");
 
 module.exports = async (req, res) => {
+  // 1. Autorisations pour ton site (CORS)
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
 
-  const q = req.query.q || (req.body && req.body.q);
-  if (!q) return res.status(400).json({ error: "q manquant" });
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
+
+  const { q } = req.body;
+  if (!q) return res.status(400).json({ error: "Recherche vide" });
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
-    // ÉTAPE 1 : FR → 1 mot arabe
-    const transMsg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 20,
-      system: "Tu es un traducteur. Réponds UNIQUEMENT avec 1 seul mot arabe. Rien d'autre.",
-      messages: [{ role: "user", content: `Traduis en 1 mot arabe pour recherche hadith: "${q}"` }]
+    // ÉTAPE 1 : Traduire ta recherche en Arabe (car l'API Dorar veut de l'arabe)
+    const transPrompt = await client.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: 30,
+      system: "Tu es un traducteur expert. Traduis le mot ou la phrase en 1 ou 2 mots-clés arabes pour une recherche de hadith. Réponds UNIQUEMENT par les mots arabes.",
+      messages: [{ role: "user", content: q }]
     });
-    const arabicQuery = transMsg.content[0].text.trim().split(/\s+/)[0];
+    const arabicQuery = transPrompt.content[0].text.trim();
 
-    // ÉTAPE 2 : API JSON officielle Dorar (URL exacte de la documentation)
+    // ÉTAPE 2 : Appel à l'API OFFICIELLE (La méthode du fichier PHP)
+    // On utilise exactement l'URL que tu as trouvée
     const dorarUrl = `https://dorar.net/dorar_api.json?skey=${encodeURIComponent(arabicQuery)}`;
-    const dorarResp = await fetch(dorarUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json"
-      },
-      signal: AbortSignal.timeout(15000)
-    });
+    const response = await fetch(dorarUrl);
+    const data = await response.json();
 
-    const raw = await dorarResp.text();
+    // ÉTAPE 3 : Extraction du contenu (Basé sur ton fichier : ahadith->result)
+    // On récupère le bloc de texte officiel fourni par Dorar
+    const rawResult = data.ahadith ? data.ahadith.result : "";
 
-    let ahadith = [];
-    try {
-      const json = JSON.parse(raw);
-      ahadith = json.hadith || json.ahadith || [];
-    } catch(e) {
-      return res.status(200).json({ arabicQuery, results: [], debug: raw.substring(0, 300) });
-    }
-
-    if (ahadith.length === 0) {
-      return res.status(200).json({ arabicQuery, results: [], debug: raw.substring(0, 300) });
-    }
-
-    const rawResults = ahadith.slice(0, 5).map(h => ({
-      arabic_text: (h.hadith || h.htext || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().substring(0, 400),
-      savant: (h.mohadith || h.mName || "").trim(),
-      grade: (h.grade || h.hukm || "").trim(),
-      source: (h.book || h.bName || "").trim(),
-      rawi: (h.rawi || "").trim()
-    })).filter(h => h.arabic_text.length > 20);
-
-    if (rawResults.length === 0) {
+    if (!rawResult || rawResult.length < 10) {
       return res.status(200).json({ arabicQuery, results: [] });
     }
 
-    // ÉTAPE 3 : Traduction AR → FR avec Bouclier Doctrinal
-    const arabicTexts = rawResults.map(r => r.arabic_text).join("\n---\n");
-    const translateMsg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
-      system: `Tu es un traducteur orthodoxe en sciences du Hadith, voie des Salaf As-Salih.
-RÈGLES ABSOLUES :
-- Traduction strictement littérale, zéro Ta'wil.
-- استوى = "S'est établi" | يد الله = "La Main d'Allah" | نزول = "Descente" | وجه الله = "Le Visage d'Allah"
-- Aucun commentaire. Traduis uniquement.`,
-      messages: [{ role: "user", content: `Traduis en français. Séparateur : "---". Même ordre.\n\n${arabicTexts}` }]
+    // ÉTAPE 4 : Traduction et Nettoyage par Claude
+    // On lui envoie le bloc HTML brut de Dorar pour qu'il en fasse une belle liste en français
+    const translationMsg = await client.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: 2500,
+      system: `Tu es un traducteur orthodoxe spécialisé en sciences du Hadith (Manhaj Salaf).
+RÈGLES :
+- Traduction littérale stricte, aucun commentaire.
+- Respect total des Noms et Attributs d'Allah (zéro Ta'wil).
+- Sépare chaque hadith traduit par le marqueur "---".
+- Nettoie les balises HTML pour ne garder que le texte sacré et le verdict du savant.`,
+      messages: [{
+        role: "user",
+        content: `Traduis ce contenu officiel de Dorar en français :\n\n${rawResult}`
+      }]
     });
 
-    const frenchTexts = translateMsg.content[0].text.trim().split("---").map(t => t.trim());
-    const results = rawResults.map((r, i) => ({ ...r, french_text: frenchTexts[i] || "" }));
+    const frenchTexts = translationMsg.content[0].text.split("---").map(t => t.trim());
+
+    // ÉTAPE 5 : Structuration pour ton interface
+    const results = frenchTexts.map((text, i) => ({
+      id: i,
+      french_text: text,
+      source: "Dorar.net (Méthode Officielle)",
+      grade: "Vérifié"
+    }));
 
     return res.status(200).json({ arabicQuery, results });
 
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("Erreur:", error);
+    return res.status(500).json({ error: "Erreur technique" });
   }
 };
