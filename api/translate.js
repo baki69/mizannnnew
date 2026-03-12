@@ -13,43 +13,36 @@ module.exports = async (req, res) => {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
-    // 1. TRADUCTION DE LA RECHERCHE (Français -> Arabe)
+    // 1. Traduction de la recherche (Modèle SONNET - Le plus fiable)
     const translationToArabic = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-3-5-sonnet-20241022",
       max_tokens: 50,
-      system: "Traduis uniquement en 1 ou 2 mots-clés arabes pour une recherche de hadith. Pas de texte superflu.",
+      system: "Traduis uniquement en 1 ou 2 mots-clés arabes pour une recherche de hadith.",
       messages: [{ role: "user", content: q }]
     });
     const arabicQuery = translationToArabic.content[0].text.trim();
 
-    // 2. APPEL OFFICIEL DORAR (Lien de ton fichier PHP)
+    // 2. Appel à l'API Dorar
     const dorarUrl = `https://dorar.net/dorar_api.json?skey=${encodeURIComponent(arabicQuery)}`;
-    
     const response = await fetch(dorarUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
-    
     const data = await response.json();
-
-    // 3. EXTRACTION (ahadith -> result)
     const rawContent = data.ahadith ? data.ahadith.result : "";
 
     if (!rawContent || rawContent.length < 10) {
       return res.status(200).json({ results: [] });
     }
 
-    // 4. TRADUCTION DES RÉSULTATS (Arabe -> Français)
+    // 3. Traduction finale (Modèle SONNET)
     const finalTranslation = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-3-5-sonnet-20241022",
       max_tokens: 3000,
-      system: "Tu es un traducteur expert en hadith (Manhaj Salaf). Traduis fidèlement. Sépare les hadiths par '---'. Nettoie le HTML.",
-      messages: [{ role: "user", content: `Traduis ce texte officiel de Dorar :\n\n${rawContent}` }]
+      system: "Tu es un traducteur expert en hadith. Traduis fidèlement du texte arabe vers le français.",
+      messages: [{ role: "user", content: `Traduis ce texte :\n\n${rawContent}` }]
     });
 
     const translatedSections = finalTranslation.content[0].text.split("---").map(t => t.trim());
-
     const finalResults = translatedSections.map((text, index) => ({
       id: index,
       french_text: text,
@@ -61,6 +54,6 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     console.error("Erreur:", error);
-    return res.status(500).json({ error: "Vérifiez la connexion ou les crédits." });
+    return res.status(500).json({ error: "Erreur technique de l'IA" });
   }
 };
