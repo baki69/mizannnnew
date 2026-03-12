@@ -84,22 +84,24 @@ module.exports = async (req, res) => {
       await callClaude(client, q, KEYWORD_SYSTEM)
     ).trim().split(/\s+/)[0];
 
-    // 2. Appel direct dorar_api.json
+    // 2. API JSON officielle Dorar : dorar_api.json?skey=
     const apiUrl =
-      "https://www.dorar.net/hadith/search?q=" +
+      "https://dorar.net/dorar_api.json?skey=" +
       encodeURIComponent(arabicQuery);
     const dorarRes = await fetch(apiUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Accept: "text/html,application/xhtml+xml",
-        Referer: "https://www.dorar.net/",
+        Accept: "application/json",
+        Referer: "https://dorar.net/",
       },
       signal: AbortSignal.timeout(10000),
     });
     if (!dorarRes.ok) throw new Error("Dorar error " + dorarRes.status);
 
-    const htmlResult = await dorarRes.text();
+    const json = await dorarRes.json();
+    // Fragment HTML : json.ahadith.result (ancienne structure) ou json.ahadith
+    const htmlResult = json?.ahadith?.result ?? json?.ahadith ?? null;
     if (!htmlResult)
       return res
         .status(200)
