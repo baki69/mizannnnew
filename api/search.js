@@ -47,7 +47,7 @@ function parseHadithInfo($, infoEl) {
 
 async function callClaude(client, userMessage, system) {
   const params = {
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 1024,
     messages: [{ role: "user", content: userMessage }],
   };
