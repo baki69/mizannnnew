@@ -1,13 +1,11 @@
 const Anthropic = require("@anthropic-ai/sdk");
 
 module.exports = async (req, res) => {
-  // 1. Autorisations pour ton site (CORS)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
 
   const { q } = req.body;
   if (!q) return res.status(400).json({ error: "Recherche vide" });
@@ -15,60 +13,54 @@ module.exports = async (req, res) => {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
-    // ÉTAPE 1 : Traduire ta recherche en Arabe (car l'API Dorar veut de l'arabe)
-    const transPrompt = await client.messages.create({
+    // 1. TRADUCTION DE LA RECHERCHE (Français -> Arabe)
+    const translationToArabic = await client.messages.create({
       model: "claude-3-5-haiku-20241022",
-      max_tokens: 30,
-      system: "Tu es un traducteur expert. Traduis le mot ou la phrase en 1 ou 2 mots-clés arabes pour une recherche de hadith. Réponds UNIQUEMENT par les mots arabes.",
+      max_tokens: 50,
+      system: "Traduis uniquement en 1 ou 2 mots-clés arabes pour une recherche de hadith. Pas de texte superflu.",
       messages: [{ role: "user", content: q }]
     });
-    const arabicQuery = transPrompt.content[0].text.trim();
+    const arabicQuery = translationToArabic.content[0].text.trim();
 
-    // ÉTAPE 2 : Appel à l'API OFFICIELLE (La méthode du fichier PHP)
-    // On utilise exactement l'URL que tu as trouvée
+    // 2. APPEL OFFICIEL DORAR (Lien de ton fichier PHP)
     const dorarUrl = `https://dorar.net/dorar_api.json?skey=${encodeURIComponent(arabicQuery)}`;
-    const response = await fetch(dorarUrl);
+    
+    const response = await fetch(dorarUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
     const data = await response.json();
 
-    // ÉTAPE 3 : Extraction du contenu (Basé sur ton fichier : ahadith->result)
-    // On récupère le bloc de texte officiel fourni par Dorar
-    const rawResult = data.ahadith ? data.ahadith.result : "";
+    // 3. EXTRACTION (ahadith -> result)
+    const rawContent = data.ahadith ? data.ahadith.result : "";
 
-    if (!rawResult || rawResult.length < 10) {
-      return res.status(200).json({ arabicQuery, results: [] });
+    if (!rawContent || rawContent.length < 10) {
+      return res.status(200).json({ results: [] });
     }
 
-    // ÉTAPE 4 : Traduction et Nettoyage par Claude
-    // On lui envoie le bloc HTML brut de Dorar pour qu'il en fasse une belle liste en français
-    const translationMsg = await client.messages.create({
+    // 4. TRADUCTION DES RÉSULTATS (Arabe -> Français)
+    const finalTranslation = await client.messages.create({
       model: "claude-3-5-haiku-20241022",
-      max_tokens: 2500,
-      system: `Tu es un traducteur orthodoxe spécialisé en sciences du Hadith (Manhaj Salaf).
-RÈGLES :
-- Traduction littérale stricte, aucun commentaire.
-- Respect total des Noms et Attributs d'Allah (zéro Ta'wil).
-- Sépare chaque hadith traduit par le marqueur "---".
-- Nettoie les balises HTML pour ne garder que le texte sacré et le verdict du savant.`,
-      messages: [{
-        role: "user",
-        content: `Traduis ce contenu officiel de Dorar en français :\n\n${rawResult}`
-      }]
+      max_tokens: 3000,
+      system: "Tu es un traducteur expert en hadith (Manhaj Salaf). Traduis fidèlement. Sépare les hadiths par '---'. Nettoie le HTML.",
+      messages: [{ role: "user", content: `Traduis ce texte officiel de Dorar :\n\n${rawContent}` }]
     });
 
-    const frenchTexts = translationMsg.content[0].text.split("---").map(t => t.trim());
+    const translatedSections = finalTranslation.content[0].text.split("---").map(t => t.trim());
 
-    // ÉTAPE 5 : Structuration pour ton interface
-    const results = frenchTexts.map((text, i) => ({
-      id: i,
+    const finalResults = translatedSections.map((text, index) => ({
+      id: index,
       french_text: text,
-      source: "Dorar.net (Méthode Officielle)",
+      source: "Dorar.net",
       grade: "Vérifié"
     }));
 
-    return res.status(200).json({ arabicQuery, results });
+    return res.status(200).json({ results: finalResults });
 
   } catch (error) {
     console.error("Erreur:", error);
-    return res.status(500).json({ error: "Erreur technique" });
+    return res.status(500).json({ error: "Vérifiez la connexion ou les crédits." });
   }
 };
