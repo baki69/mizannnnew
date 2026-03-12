@@ -4,20 +4,44 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const SYSTEM_TAKHRIJ =
   "Tu es un expert en sciences du Hadith selon la methodologie des Salaf As-Salih. " +
   "Lexique de Fer INTOUCHABLE : istawa = S est etabli | Yad Allah = La Main d Allah | " +
-  "Nuzul = Descente | Wajh Allah = Le Visage d Allah. Interdiction de paraphraser ces termes. " +
-  "Pour chaque hadith, produis un objet JSON avec exactement ces 5 champs en francais : " +
+  "Nuzul = Descente | Wajh Allah = Le Visage d Allah. " +
+  "Pour chaque hadith, produis un objet JSON avec ces 5 champs en francais : " +
   "french_text (traduction litterale du matn, Lexique de Fer strict), " +
-  "grade_explique (verdict d authenticite detaille + nom du savant + reference), " +
-  "jarh_tadil (analyse du rawi selon Ibn Hajar Taqrib al-Tahdhib, Al-Dhahabi Al-Kashif, Al-Albani), " +
-  "sanad_conditions (verification : Ittisal al-Sanad / Adala al-Rawi / Dabt al-Rawi / Shudhudh / Illa), " +
-  "avis_savants (avis consolides des mouhaddithoune avec references). " +
-  'Reponds UNIQUEMENT avec un tableau JSON valide : [{"i":0,"french_text":"...","grade_explique":"...","jarh_tadil":"...","sanad_conditions":"...","avis_savants":"..."}]';
+  "grade_explique (verdict + savant + reference), " +
+  "jarh_tadil (analyse rawi selon Ibn Hajar / Al-Dhahabi / Al-Albani), " +
+  "sanad_conditions (Ittisal / Adala / Dabt / Shudhudh / Illa), " +
+  "avis_savants (avis consolides avec references). " +
+  'Reponds UNIQUEMENT avec un tableau JSON : [{"i":0,"french_text":"...","grade_explique":"...","jarh_tadil":"...","sanad_conditions":"...","avis_savants":"..."}]';
+
+// Dictionnaire FR -> AR (evite appel Haiku = economise 2-3s)
+const DICT = {
+  "intention":"النية","intentions":"النية","niya":"النية","foi":"الإيمان",
+  "islam":"الإسلام","priere":"الصلاة","salat":"الصلاة","zakat":"الزكاة",
+  "jeune":"الصيام","ramadan":"رمضان","hajj":"الحج","coran":"القرآن",
+  "paradis":"الجنة","enfer":"النار","mort":"الموت","jugement":"القيامة",
+  "prophete":"النبي","sunna":"السنة","hadith":"الحديث","sincere":"النصيحة",
+  "sincerite":"النصيحة","patience":"الصبر","gratitude":"الشكر","verite":"الصدق",
+  "mensonge":"الكذب","honnete":"الأمانة","confiance":"التوكل","purification":"الطهارة",
+  "ablution":"الوضوء","mosquee":"المسجد","aumone":"الصدقة","licite":"الحلال",
+  "illicite":"الحرام","repentir":"التوبة","pardon":"المغفرة","misericorde":"الرحمة",
+  "connaissance":"العلم","savoir":"العلم","savant":"العلم","bien":"الخير",
+  "mal":"الشر","acte":"العمل","actes":"الأعمال","jour dernier":"يوم القيامة",
+  "allah":"الله","dieu":"الله","ange":"الملائكة","destin":"القدر"
+};
+
+function frToAr(q) {
+  const low = q.toLowerCase().trim();
+  for (const [fr, ar] of Object.entries(DICT)) {
+    if (low.includes(fr)) return ar;
+  }
+  // Fallback : premier mot significatif
+  return q.trim().split(/\s+/).slice(0,2).join(" ");
+}
 
 function clean(s) {
   return (s || "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Structure réelle Dorar : <span class='info-subtitle'>LABEL : </span>VALEUR
 function getField(block, label) {
   const rx = new RegExp(label + "[^<]*<\\/span>([^<]+)");
   const m = block.match(rx);
@@ -34,36 +58,27 @@ module.exports = async (req, res) => {
   if (!q) return res.status(400).json({ error: "Requete vide" });
 
   try {
-    // 1. FR → 1 mot arabe (Haiku)
+    // 1. FR -> AR via dictionnaire statique (0ms)
     const isArabic = /[\u0600-\u06FF]/.test(q);
-    let arabicQuery = q;
+    const arabicQuery = isArabic ? q : frToAr(q);
+    console.log("QUERY:", q, "->", arabicQuery);
 
-    if (!isArabic) {
-      const promptAr = await client.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 20,
-        system: "Reponds UNIQUEMENT avec 1 seul mot arabe. Rien d autre.",
-        messages: [{ role: "user", content: "Traduis en 1 mot arabe : " + q }]
-      });
-      arabicQuery = promptAr.content[0].text.trim().split(/\s+/)[0];
-    }
-
-    // 2. API officielle Dorar — structure : data.ahadith.result (HTML brut)
+    // 2. API Dorar
     const dorarResp = await fetch(
       "https://dorar.net/dorar_api.json?skey=" + encodeURIComponent(arabicQuery),
-      { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) }
+      { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://dorar.net/" },
+        signal: AbortSignal.timeout(6000) }
     );
     if (!dorarResp.ok) throw new Error("Dorar " + dorarResp.status);
 
     const dorarData = await dorarResp.json();
     const html = dorarData?.ahadith?.result || "";
-    console.log("DORAR_KEYS:", JSON.stringify(Object.keys(dorarData||{})));
-    console.log("HTML200:", html.substring(0,200));
+    console.log("HTML_LEN:", html.length, "FIRST100:", html.substring(0,100));
     if (!html) return res.status(200).json([]);
 
-    // 3. Parser HTML Dorar — regex globale
+    // 3. Parser HTML Dorar — regex globale (pas de split hr)
     const results = [];
-    const hadithRx = /class="hadith"[^>]*>([\s\S]*?)<\/div>[\s\S]*?class=["']hadith-info["'][^>]*>([\s\S]*?)<\/div>/g;
+    const hadithRx = /class="hadith"[^>]*>([\s\S]*?)<\/div>[\s\S]*?class="hadith-info"[^>]*>([\s\S]*?)<\/div>/g;
     let m;
     while ((m = hadithRx.exec(html)) !== null) {
       if (results.length >= 3) break;
@@ -78,9 +93,11 @@ module.exports = async (req, res) => {
       results.push({ arabic_text, grade, savant, source, rawi,
         french_text: "", grade_explique: "", jarh_tadil: "", sanad_conditions: "", avis_savants: "" });
     }
+
+    console.log("PARSED:", results.length, "hadiths");
     if (!results.length) return res.status(200).json([]);
 
-    // 4. Takhrij complet → 5 champs via Haiku (sous 10s Vercel)
+    // 4. Takhrij 5 champs — 1 seul appel Haiku
     const textes = results.map((r, i) =>
       "[" + i + "]\nMatn : " + r.arabic_text +
       "\nGrade : " + r.grade +
@@ -92,20 +109,16 @@ module.exports = async (req, res) => {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2048,
       system: SYSTEM_TAKHRIJ,
-      messages: [{ role: "user", content: "Genere le Takhrij complet pour ces hadiths :\n\n" + textes }]
+      messages: [{ role: "user", content: textes }]
     });
 
     const rawText = promptFr.content[0].text;
-
-    // 5. Parse JSON double fallback
     const analyses = {};
     try {
       const match = rawText.match(/\[[\s\S]*\]/);
-      if (match) {
-        JSON.parse(match[0]).forEach((item) => {
-          if (typeof item.i === "number") analyses[item.i] = item;
-        });
-      }
+      if (match) JSON.parse(match[0]).forEach(item => {
+        if (typeof item.i === "number") analyses[item.i] = item;
+      });
     } catch (_) {}
 
     results.forEach((r, i) => {
@@ -117,9 +130,10 @@ module.exports = async (req, res) => {
       r.avis_savants     = clean(a.avis_savants)      || "Non documente";
     });
 
-    return res.status(200).json(results); // tableau direct attendu par index.html
+    return res.status(200).json(results);
 
   } catch (error) {
+    console.log("ERROR:", error.message);
     return res.status(500).json({ error: error.message });
   }
 };
