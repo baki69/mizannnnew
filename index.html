@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;600;700;900&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;min-height:100vh;overflow-x:hidden;background:transparent;}
+html,body{width:100%;min-height:100vh;overflow-x:hidden;background:#0a0600;}
 ::-webkit-scrollbar{width:2px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:linear-gradient(to bottom,transparent,#b8922a,transparent);}
@@ -582,10 +582,11 @@ html,body{width:100%;min-height:100vh;overflow-x:hidden;background:transparent;}
 .tab-item.active .tab-ar{color:rgba(201,168,76,.5);}
 
 /* Décaler le contenu scrollable pour pas cacher sous la tab bar */
-.content{padding-bottom:100px !important;}
-.list-content{padding-bottom:100px !important;}
-.det-content{padding-bottom:100px !important;}
-#view-home .home-inner{padding-bottom:100px !important;}
+.content{padding-bottom:120px !important;}
+.list-content{padding-bottom:120px !important;}
+.det-content{padding-bottom:120px !important;}
+#view-home .home-inner{padding-bottom:120px !important;}
+#view-hadith .content{padding-bottom:140px !important;}
 
 /* ══ ANIMATION PÉDAGOGIQUE PRÉDICATEUR ══ */
 .pred-loading-overlay{
@@ -4536,7 +4537,7 @@ function analyzeHadith(txt){
     // Tout le reste → Dorar via IA (FR, AR court, concepts)
     aiResult='dorar';
     clearInterval(loadTimer);
-    document.getElementById('loading-box').classList.remove('active');
+    document.getElementById('loading-box').classList.add('active');
     _searchDorarTopic(txt);
     return;
   }
