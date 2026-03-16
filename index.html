@@ -6180,10 +6180,18 @@ function _mzDisclaimer(){
 }
 
 /* ═══ TRIDENT 1 : CASCADE DE PRÉSERVATION — ISNAD VERTICAL (MAQUETTE EXACTE) ═══ */
-function _mzIsnadChain(jarhHtml, grade) {
-  if(!jarhHtml || jarhHtml.length < 5) return '';
-  var isSahih = (grade==='SAHIH'||grade==='HASAN');
+/* ══════════════════════════════════════════════════════════════════════════
+   TRIDENT AL-MÎZÂN — COMPOSANT 1
+   LA CASCADE DE PRÉSERVATION  ·  سِلسِلَةُ الإِسنَاد
 
+   DESIGN VALIDÉ — NE MODIFIER AUCUNE CLASSE TAILWIND
+   Drop-in replacement pour _mzIsnadChain(jarhHtml, grade)
+
+   Dépendances : Tailwind CDN + Google Fonts (Cinzel, Scheherazade New, Cormorant Garamond)
+══════════════════════════════════════════════════════════════════════════ */
+function _mzIsnadChain(jarhHtml, grade) {
+  if (!jarhHtml || jarhHtml.length < 5) return '';
+  var isSahih = (grade === 'SAHIH' || grade === 'HASAN');
   /* ══════════════════════════════════════════════════════════════
      ÉTAPE 1 — PARSER : Extraire chaque narrateur du HTML de l'IA
      L'IA renvoie des <span style="color:...">NOM</span>
@@ -6191,127 +6199,161 @@ function _mzIsnadChain(jarhHtml, grade) {
   ══════════════════════════════════════════════════════════════ */
   var spanRe = /<span[^>]*style="[^"]*color:\s*([^;"]+)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
   var nodes = [], mm;
-  while((mm = spanRe.exec(jarhHtml)) !== null) {
+  while ((mm = spanRe.exec(jarhHtml)) !== null) {
     var color = mm[1].trim();
-    var name = mm[2].replace(/<[^>]+>/g,'').trim();
-    if(!name || name.length < 2) continue;
-    var isRed = /ef4444|e63946|dc2626|ff0000|red|e74c3c/i.test(color);
+    var name  = mm[2].replace(/<[^>]+>/g, '').trim();
+    if (!name || name.length < 2) continue;
+    var isRed  = /ef4444|e63946|dc2626|ff0000|red|e74c3c/i.test(color);
     var isBlue = /5dade2|3b82f6|60a5fa|blue/i.test(color);
-    nodes.push({name:name, type: isRed ? 'kadhdhab' : isBlue ? 'sahabi' : 'thiqah'});
+    nodes.push({ name: name, type: isRed ? 'kadhdhab' : isBlue ? 'sahabi' : 'thiqah' });
   }
-
-  /* Fallback : si aucun <span> coloré, essayer de parser des noms en bold */
-  if(nodes.length === 0) {
+  /* Fallback : noms en bold */
+  if (nodes.length === 0) {
     var boldRe = /<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>/gi;
     var bm;
-    while((bm = boldRe.exec(jarhHtml)) !== null) {
-      var bname = bm[1].replace(/<[^>]+>/g,'').trim();
-      if(bname.length >= 2) nodes.push({name:bname, type:'thiqah'});
+    while ((bm = boldRe.exec(jarhHtml)) !== null) {
+      var bname = bm[1].replace(/<[^>]+>/g, '').trim();
+      if (bname.length >= 2) nodes.push({ name: bname, type: 'thiqah' });
     }
   }
-
-  /* Fallback ultime : extraire les noms arabes bruts */
-  if(nodes.length === 0) {
-    var arNames = jarhHtml.replace(/<[^>]+>/g,' ').match(/[\u0600-\u06FF][\u0600-\u06FF\s]{3,30}/g);
-    if(arNames && arNames.length) {
-      arNames.slice(0, 6).forEach(function(n) {
-        nodes.push({name:n.trim(), type:'thiqah'});
+  /* Fallback ultime : noms arabes bruts */
+  if (nodes.length === 0) {
+    var arNames = jarhHtml.replace(/<[^>]+>/g, ' ').match(/[\u0600-\u06FF][\u0600-\u06FF\s]{3,30}/g);
+    if (arNames && arNames.length) {
+      arNames.slice(0, 6).forEach(function (n) {
+        nodes.push({ name: n.trim(), type: 'thiqah' });
       });
     }
   }
-
-  /* Si toujours rien, texte brut fallback */
-  if(nodes.length === 0) {
-    var cleaned = jarhHtml.replace(/<[^>]+>/g,' ').trim();
-    if(cleaned.length < 3) return '';
-    return '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);padding:12px 0;">'+jarhHtml+'</p>';
+  /* Si toujours rien → fallback texte brut */
+  if (nodes.length === 0) {
+    var cleaned = jarhHtml.replace(/<[^>]+>/g, ' ').trim();
+    if (cleaned.length < 3) return '';
+    return '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);padding:12px 0;">' + jarhHtml + '</p>';
   }
-
   /* ══════════════════════════════════════════════════════════════
-     ÉTAPE 2 — DICTIONNAIRES : Données par type de narrateur
+     ÉTAPE 2 — DICTIONNAIRE : Données par type de narrateur
+     DESIGN VALIDÉ — NE PAS MODIFIER
   ══════════════════════════════════════════════════════════════ */
   var RAWI_DATA = {
     compiler: {
-      method: "SAMA\u2019 \u2014 Audition directe",
-      role:   "COMPILATEUR \u2014 Auteur du recueil",
-      status: "A compile et transmis ce hadith dans son recueil avec un isnad remontant au Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645.",
-      border: 'border-[#d4af37]', dotBorder: 'border-[#d4af37]',
-      mechColor: 'text-[#d4af37]', nameColor: 'text-[#d4af37]'
+      method:    "SAMA\u2019 \u2014 Audition directe",
+      role:      "COMPILATEUR \u2014 Auteur du recueil",
+      status:    "A compil\u00e9 et transmis ce hadith dans son recueil avec un isnad remontant au Proph\u00e8te \uFDFA.",
+      border:    'border-[#d4af37]',
+      dotBorder: 'border-[#d4af37]',
+      mechColor: 'text-[#d4af37]',
+      nameColor: 'text-[#d4af37]',
+      mechBg:    'bg-[#1a140a]',
+      mechBdr:   'border-[#d4af37]/30',
+      dotBg:     'bg-black',
+      dotText:   'text-[#d4af37]'
     },
     thiqah: {
-      method: "HADDATHANA \u2014 Transmission orale",
-      role:   "TRANSMETTEUR \u2014 Maillon de la Cha\u00eene",
-      status: "D\u00e9clar\u00e9 Thiqah (garant fiable) par Ibn Hajar dans Taqrib at-Tahdhib. Confirm\u00e9 par Al-Dhahabi.",
-      border: 'border-[#d4af37]', dotBorder: 'border-[#d4af37]',
-      mechColor: 'text-green-500', nameColor: 'text-white'
+      method:    "HADDATHANA \u2014 Transmission orale",
+      role:      "TRANSMETTEUR \u2014 Maillon de la Cha\u00eene",
+      status:    "D\u00e9clar\u00e9 Thiqah (garant fiable) par Ibn Hajar dans Taqrib at-Tahdhib. Confirm\u00e9 par Al-Dhahabi.",
+      border:    'border-[#d4af37]',
+      dotBorder: 'border-[#d4af37]',
+      mechColor: 'text-green-500',
+      nameColor: 'text-white',
+      mechBg:    'bg-[#0a1a0f]',
+      mechBdr:   'border-green-600/30',
+      dotBg:     'bg-black',
+      dotText:   'text-[#d4af37]'
     },
     sahabi: {
-      method: "\u2018AN \u2014 Transmission indirecte",
-      role:   "SAHABI \u2014 Compagnon du Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645",
-      status: "Compagnon du Proph\u00e8te \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645 \u2014 tous les Sahabah sont \u2018Udul (int\u00e8gres) par Ijma\u2019.",
-      border: 'border-yellow-500', dotBorder: 'border-yellow-500',
-      mechColor: 'text-yellow-500', nameColor: 'text-yellow-400'
+      method:    "\u2018AN \u2014 Transmission indirecte",
+      role:      "SAHABI \u2014 Compagnon du Proph\u00e8te \uFDFA",
+      status:    "Compagnon du Proph\u00e8te \uFDFA \u2014 tous les Sahabah sont \u2018Udul (int\u00e8gres) par Ijma\u2019.",
+      border:    'border-yellow-500',
+      dotBorder: 'border-yellow-500',
+      mechColor: 'text-yellow-500',
+      nameColor: 'text-yellow-400',
+      mechBg:    'bg-[#1a1400]',
+      mechBdr:   'border-yellow-500/30',
+      dotBg:     'bg-black',
+      dotText:   'text-yellow-400'
     },
     kadhdhab: {
-      method: "MAILLON ROMPU",
-      role:   "TRANSMETTEUR REJETE",
-      status: "Rejet\u00e9 par Ahmad, Ibn Ma\u2019in et Al-Bukhari. Sa narration ne constitue aucune preuve (hujjah).",
-      border: 'border-red-500', dotBorder: 'border-red-500',
-      mechColor: 'text-red-500', nameColor: 'text-red-400'
+      method:    "MAILLON ROMPU",
+      role:      "TRANSMETTEUR REJET\u00c9",
+      status:    "Rejet\u00e9 par Ahmad, Ibn Ma\u2019in et Al-Bukhari. Sa narration ne constitue aucune preuve (hujjah).",
+      border:    'border-red-500',
+      dotBorder: 'border-red-500',
+      mechColor: 'text-red-500',
+      nameColor: 'text-red-400',
+      mechBg:    'bg-[#1a0a0a]',
+      mechBdr:   'border-red-500/30',
+      dotBg:     'bg-red-950',
+      dotText:   'text-red-500'
     }
   };
-
   /* ══════════════════════════════════════════════════════════════
-     ÉTAPE 3 — GÉNÉRER LE HTML TAILWIND EXACT (MAQUETTE CLIENT)
+     ÉTAPE 3 — GÉNÉRER LE HTML TAILWIND (DESIGN VALIDÉ)
+     Structure exacte du Canvas React approuvé
   ══════════════════════════════════════════════════════════════ */
+  /* Gradient de la ligne centrale selon le grade */
+  var lineGradient = isSahih
+    ? 'linear-gradient(to bottom, #d4af37, #22c55e 60%, #15803d)'
+    : 'linear-gradient(to bottom, #d4af37, #f59e0b 40%, #ef4444 80%)';
+  var lineShadow = isSahih
+    ? '0 0 15px rgba(212,175,55,0.4)'
+    : '0 0 15px rgba(239,68,68,0.3)';
   var html = '';
-
+  /* ── EN-TÊTE DE LA CASCADE ── */
+  html += '<div class="text-center mb-8 border-b border-[#d4af37]/20 pb-4 mt-6">'
+    +   '<p class="text-[9px] text-[#d4af37]/40 uppercase tracking-[0.35em] mb-2" style="font-family:Cinzel,serif;">Trident al-M\u00eez\u00e2n \u2014 Composant I</p>'
+    +   '<h2 class="text-2xl font-black text-[#d4af37] tracking-widest uppercase mb-3" style="font-family:Cinzel,serif;">La Cascade de Pr\u00e9servation</h2>'
+    +   '<p class="text-xs text-gray-300 italic font-light tracking-wide mb-1 max-w-md mx-auto" style="font-family:\'Cormorant Garamond\',serif;">'
+    +     '\u00ab Cette science est une religion, regardez donc scrupuleusement de qui vous prenez votre religion. \u00bb'
+    +   '</p>'
+    +   '<p class="text-[9px] text-[#d4af37] uppercase tracking-widest font-bold" style="font-family:Cinzel,serif;">\u2014 Imam Muhammad ibn Sirin</p>'
+    + '</div>';
   /* ── Conteneur parent avec ligne gradient centrale ── */
   html += '<div class="relative max-w-4xl mx-auto py-8">';
-  html += '<div class="absolute left-1/2 -translate-x-1/2 w-1.5 bg-gradient-to-b from-yellow-400 to-green-600 h-full z-0 shadow-[0_0_15px_rgba(212,175,55,0.4)]"></div>';
-
-  nodes.forEach(function(n, i) {
+  /* Ligne centrale dégradée Or → Vert (ou Or → Rouge pour Da'if) */
+  html += '<div class="absolute left-1/2 -translate-x-1/2 w-1.5 h-full z-0 rounded-full"'
+    + ' style="background:' + lineGradient + ';box-shadow:' + lineShadow + ';">'
+    + '</div>';
+  /* ── Boucle sur chaque narrateur ── */
+  nodes.forEach(function (n, i) {
+    /* Type : le premier = compiler (sauf si kadhdhab) */
     var t = (i === 0 && n.type !== 'kadhdhab') ? 'compiler' : n.type;
     var d = RAWI_DATA[t] || RAWI_DATA.thiqah;
-    var rawiId = i + 1;
-    var isDefect = (t === 'kadhdhab');
-    var dotBg = isDefect ? 'bg-red-950' : 'bg-black';
-    var dotTextCol = isDefect ? 'text-red-500' : 'text-[#d4af37]';
-    var delay = (i * 0.15);
-
+    var rawiId  = i + 1;
+    var delay   = (i * 0.15);
     /* ── ROW : un narrateur complet ── */
-    html += '<div class="relative z-10 flex items-center justify-center gap-8 mb-16" style="animation:fadeInUp .5s ease both;animation-delay:'+delay+'s;">';
-
+    html += '<div class="relative z-10 flex items-center justify-center gap-8 mb-16"'
+      + ' style="animation:fadeInUp .5s ease both;animation-delay:' + delay + 's;">';
     /* ══ GAUCHE : Mécanisme (Tahammul) ══ */
     html += '<div class="w-1/2 flex justify-end">'
-      + '<div class="bg-[#1a140a] border border-[#d4af37]/30 px-5 py-3 rounded-lg text-right max-w-[250px] shadow-lg">'
+      + '<div class="' + d.mechBg + ' border ' + d.mechBdr + ' px-5 py-3 rounded-lg text-right max-w-[250px] shadow-lg">'
       +   '<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">M\u00e9canisme (Tahammul)</span>'
-      +   '<span class="font-black text-sm uppercase '+d.mechColor+'" style="font-family:Cinzel,serif;">'+d.method+'</span>'
+      +   '<span class="font-black text-sm uppercase ' + d.mechColor + '" style="font-family:Cinzel,serif;">' + d.method + '</span>'
       + '</div>'
       + '</div>';
-
     /* ══ POINT CENTRAL (DOT) ══ */
-    html += '<div class="absolute left-1/2 transform -translate-x-1/2 w-12 h-12 rounded-full '+dotBg+' border-4 '+d.dotBorder+' flex items-center justify-center z-20 shadow-[0_0_20px_rgba(0,0,0,1)]">'
-      + '<span class="'+dotTextCol+' text-xs font-bold">'+rawiId+'</span>'
+    html += '<div class="absolute left-1/2 transform -translate-x-1/2 w-12 h-12 rounded-full ' + d.dotBg + ' border-4 ' + d.dotBorder + ' flex items-center justify-center z-20 shadow-[0_0_20px_rgba(0,0,0,1)]">'
+      + '<span class="' + d.dotText + ' text-xs font-bold">' + rawiId + '</span>'
       + '</div>';
-
-    /* ══ DROITE : Carte narrateur ══ */
+    /* ══ DROITE : Carte narrateur + Verdict des Anciens ══ */
     html += '<div class="w-1/2 flex justify-start">'
-      + '<div class="bg-[#111] p-5 rounded-xl border-l-4 '+d.border+' shadow-2xl max-w-[320px]">'
-      +   '<h3 class="text-xl font-black '+d.nameColor+' mb-1" style="font-family:\'Scheherazade New\',serif;">'+n.name+'</h3>'
-      +   '<p class="text-xs text-gray-400 uppercase tracking-widest mb-3" style="font-family:Cinzel,serif;">'+d.role+'</p>'
-      +   '<div class="bg-black/60 p-3 rounded border border-gray-800 border-l-2 '+d.border+'">'
+      + '<div class="bg-[#111] p-5 rounded-xl border-l-4 ' + d.border + ' shadow-2xl max-w-[320px]">'
+      +   '<h3 class="text-xl font-black ' + d.nameColor + ' mb-1" style="font-family:\'Scheherazade New\',serif;">' + n.name + '</h3>'
+      +   '<p class="text-[10px] text-gray-500 uppercase tracking-widest mb-3" style="font-family:Cinzel,serif;">' + d.role + '</p>'
+      +   '<div class="bg-black/60 p-3 rounded border border-gray-800 border-l-2 ' + d.border + '">'
       +     '<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">Authentification des Anciens</span>'
-      +     '<p class="text-xs text-gray-300 italic font-medium" style="font-family:\'Cormorant Garamond\',serif;line-height:1.7;">\u00ab '+d.status+' \u00bb</p>'
+      +     '<p class="text-xs text-gray-300 italic font-medium" style="font-family:\'Cormorant Garamond\',serif;line-height:1.7;">\u00ab ' + d.status + ' \u00bb</p>'
       +   '</div>'
       + '</div>'
       + '</div>';
-
     html += '</div>'; /* /row */
   });
-
-  html += '</div>'; /* /conteneur parent */
-  html += '<p style="font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.25em;color:rgba(201,168,76,.25);text-align:center;margin-top:10px;">CASCADE DE PRESERVATION \u2014 SILSILAT AL-ISNAD</p>';
+  html += '</div>'; /* /conteneur parent relatif */
+  /* ── Signature de pied ── */
+  html += '<p style="font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.25em;color:rgba(201,168,76,.25);text-align:center;margin-top:10px;">'
+    + 'CASCADE DE PR\u00c9SERVATION \u2014 SILSILAT AL-ISNAD</p>';
   return html;
 }
 /* ═══ TRIDENT 2 : SCANNER DE DÉFAUT — 'ILLAH (TAILWIND EXACT) ═══ */
