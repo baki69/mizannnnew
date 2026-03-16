@@ -5606,6 +5606,8 @@ function _renderTopicList(hadiths, query) {
   var box = document.getElementById('result-box');
   var lb  = document.getElementById('loading-box');
   if(lb) lb.classList.remove('active');
+  /* ── ANTI-DOUBLON : vider le conteneur avant toute injection ── */
+  box.innerHTML = '';
   box.classList.remove('active');
 
   if(!hadiths || hadiths.length === 0) {
@@ -5981,7 +5983,7 @@ function analyzeHadith(txt){
   if(localResult && localResult.grade){
     localResult._source_type='LOCAL';
     aiResult=localResult;
-    if(animDone){ setTimeout(function(){ renderAIResult(localResult); }, 200); }
+    if(animDone){ animDone='rendered'; setTimeout(function(){ renderAIResult(localResult); }, 200); }
   } else {
     // Tout le reste → Dorar via IA (FR, AR court, concepts)
     aiResult='dorar';
@@ -6038,9 +6040,12 @@ function analyzeHadith(txt){
     }
     if(progress>=100){
       clearInterval(loadTimer);
+      // Si déjà rendu (animDone==='rendered'), ne pas ré-appeler
+      if(animDone==='rendered') return;
       animDone=true;
       // Si l'IA a déjà répondu, on affiche
       if(aiResult!==null){
+        animDone='rendered';
         setTimeout(function(){renderAIResult(aiResult);},200);
       }
       // Sinon on attend (callClaudeAPI appellera renderAIResult quand prêt)
@@ -6217,6 +6222,9 @@ function _mzFormatAlbani(albaniHtml) {
 function renderAIResult(parsed){
   if(!parsed||parsed==='fallback'||typeof parsed!=='object'){showFallbackResult('');return;}
   if(!parsed.grade){showFallbackResult('');return;}
+  /* ── ANTI-DOUBLON : vider le conteneur avant toute injection ── */
+  var _box=document.getElementById('result-box');
+  if(_box) _box.innerHTML='';
   var g=parsed.grade||'INCONNU';
   var col=MZ_COLORS[g]||MZ_COLORS.INCONNU;
   var isLocal=parsed&&(parsed._source_type==='LOCAL'||parsed._source_type==='LOCAL_FALLBACK');
