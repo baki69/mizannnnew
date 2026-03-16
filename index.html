@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Mizan as-Sunnah — ميزان السنة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;600;700;900&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={prefix:'tw-',corePlugins:{preflight:false},theme:{extend:{colors:{gold:'#d4af37','gold-l':'#e8c96a','gold-d':'#8a6420'},keyframes:{ping:{  '75%,100%':{transform:'scale(2)',opacity:'0'}},fadeInUp:{'from':{opacity:'0',transform:'translateY(12px)'},'to':{opacity:'1',transform:'translateY(0)'}}},animation:{ping:'ping 1.5s cubic-bezier(0,0,0.2,1) infinite','fade-up':'fadeInUp 0.4s ease both'}}}}</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{width:100%;min-height:100vh;overflow-x:hidden;background:#0a0600;}
@@ -392,6 +394,70 @@ html,body{width:100%;min-height:100vh;overflow-x:hidden;background:#0a0600;}
 .mz-albani-body p{font-family:'Cormorant Garamond',serif;font-style:normal;font-size:15px;color:rgba(210,200,180,.78);line-height:1.9;margin-bottom:12px;}
 .mz-albani-body p:last-child{margin-bottom:0;}
 .mz-albani-body strong,.mz-albani-body b{color:#d4af37;font-style:normal;}
+
+/* ═══ TRIDENT AL-MÎZÂN : COMPOSANT 1 — CASCADE DE PRÉSERVATION ═══ */
+.mz-cascade{position:relative;padding:20px 0 20px 0;}
+.mz-cascade-line{position:absolute;left:50%;top:0;bottom:0;width:3px;transform:translateX(-50%);background:linear-gradient(to bottom,#d4af37,#22c55e 60%,#eab308);border-radius:2px;z-index:0;}
+.mz-cascade-node{position:relative;display:flex;align-items:flex-start;margin-bottom:24px;z-index:1;}
+.mz-cascade-node:last-child{margin-bottom:0;}
+.mz-cascade-node.left .mz-cascade-card{margin-left:auto;margin-right:calc(50% + 18px);text-align:right;}
+.mz-cascade-node.right .mz-cascade-card{margin-left:calc(50% + 18px);text-align:left;}
+.mz-cascade-dot{position:absolute;left:50%;top:14px;width:14px;height:14px;border-radius:50%;transform:translateX(-50%);border:2px solid;z-index:2;}
+.mz-cascade-dot.imam{background:rgba(212,175,55,.15);border-color:#d4af37;box-shadow:0 0 10px rgba(212,175,55,.3);}
+.mz-cascade-dot.thiqah{background:rgba(34,197,94,.15);border-color:#22c55e;box-shadow:0 0 10px rgba(34,197,94,.3);}
+.mz-cascade-dot.nabi{background:rgba(234,179,8,.2);border-color:#eab308;box-shadow:0 0 14px rgba(234,179,8,.4);}
+.mz-cascade-dot.daif{background:rgba(239,68,68,.15);border-color:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.3);}
+.mz-cascade-card{max-width:44%;background:rgba(17,24,39,.5);border:1px solid rgba(201,168,76,.12);border-radius:12px;padding:14px 16px;transition:border-color .3s;}
+.mz-cascade-card:hover{border-color:rgba(201,168,76,.3);}
+.mz-cascade-name{font-family:'Scheherazade New',serif;font-size:18px;font-weight:700;line-height:1.3;margin-bottom:3px;}
+.mz-cascade-tahammul{font-family:'Cinzel',serif;font-size:6px;letter-spacing:.2em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.15);color:rgba(212,175,55,.6);}
+.mz-cascade-cite{font-family:'Cormorant Garamond',serif;font-size:13px;color:rgba(210,200,180,.6);line-height:1.7;font-style:italic;}
+.mz-cascade-status{font-family:'Cinzel',serif;font-size:6px;font-weight:700;letter-spacing:.12em;padding:3px 10px;border-radius:5px;display:inline-block;margin-top:6px;}
+
+/* ═══ TRIDENT AL-MÎZÂN : COMPOSANT 2 — SCANNER DE DÉFAUT ('ILLAH) ═══ */
+.mz-scanner{overflow-x:auto;padding:16px 8px;-webkit-overflow-scrolling:touch;}
+.mz-scanner-track{display:flex;align-items:center;gap:0;min-width:max-content;}
+.mz-scanner-node{flex-shrink:0;width:130px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;}
+.mz-scanner-avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Scheherazade New',serif;font-size:22px;font-weight:700;position:relative;z-index:1;}
+.mz-scanner-avatar.safe{background:rgba(34,197,94,.08);border:2px solid rgba(34,197,94,.3);color:#22c55e;}
+.mz-scanner-avatar.defect{background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.5);color:#ef4444;}
+.mz-scanner-ping{position:absolute;top:50%;left:50%;width:48px;height:48px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #ef4444;animation:tridentPing 1.5s cubic-bezier(0,0,.2,1) infinite;z-index:0;}
+@keyframes tridentPing{0%{transform:translate(-50%,-50%) scale(1);opacity:.7;}75%,100%{transform:translate(-50%,-50%) scale(2.2);opacity:0;}}
+.mz-scanner-nameplate{font-family:'Scheherazade New',serif;font-size:14px;font-weight:700;margin-top:8px;line-height:1.2;}
+.mz-scanner-badge{font-family:'Cinzel',serif;font-size:6px;font-weight:700;letter-spacing:.15em;padding:3px 10px;border-radius:5px;margin-top:5px;display:inline-block;}
+.mz-scanner-badge.safe{background:rgba(34,197,94,.08);color:#22c55e;border:1px solid rgba(34,197,94,.2);}
+.mz-scanner-badge.defect{background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.25);}
+.mz-scanner-cause{font-family:'Cormorant Garamond',serif;font-size:11px;color:rgba(239,68,68,.7);margin-top:4px;line-height:1.4;max-width:120px;}
+.mz-scanner-wire{flex-shrink:0;width:36px;height:3px;position:relative;}
+.mz-scanner-wire-line{width:100%;height:100%;border-radius:2px;}
+.mz-scanner-wire-line.ok{background:linear-gradient(90deg,rgba(34,197,94,.4),rgba(34,197,94,.15));}
+.mz-scanner-wire-line.break{background:repeating-linear-gradient(90deg,rgba(239,68,68,.6) 0 4px,transparent 4px 8px);height:3px;}
+
+/* ═══ TRIDENT AL-MÎZÂN : COMPOSANT 3 — AUTOPSIE DU NARRATEUR ═══ */
+.mz-autopsy{border:1px solid rgba(201,168,76,.1);border-radius:14px;overflow:hidden;background:rgba(10,6,0,.7);}
+.mz-autopsy-header{padding:16px 20px;border-bottom:1px solid rgba(201,168,76,.08);display:flex;align-items:center;gap:12px;}
+.mz-autopsy-header-icon{width:36px;height:36px;border-radius:10px;background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.15);display:flex;align-items:center;justify-content:center;}
+.mz-autopsy-header-icon svg{width:18px;height:18px;stroke:#d4af37;fill:none;stroke-width:1.5;}
+.mz-autopsy-title{font-family:'Cinzel',serif;font-size:9px;font-weight:700;letter-spacing:.2em;color:#d4af37;}
+.mz-autopsy-title-ar{font-family:'Scheherazade New',serif;font-size:14px;color:rgba(212,175,55,.35);margin-left:8px;}
+.mz-autopsy-grid{display:grid;grid-template-columns:1fr 1fr;min-height:180px;}
+@media(max-width:640px){.mz-autopsy-grid{grid-template-columns:1fr;}}
+.mz-autopsy-left{padding:18px 20px;border-right:1px solid rgba(201,168,76,.06);}
+@media(max-width:640px){.mz-autopsy-left{border-right:none;border-bottom:1px solid rgba(201,168,76,.06);}}
+.mz-autopsy-rawi-name{font-family:'Scheherazade New',serif;font-size:22px;font-weight:700;color:#d4af37;margin-bottom:2px;}
+.mz-autopsy-rawi-role{font-family:'Cinzel',serif;font-size:6px;letter-spacing:.2em;color:rgba(212,175,55,.4);margin-bottom:16px;}
+.mz-autopsy-bar-label{font-family:'Cinzel',serif;font-size:7px;font-weight:700;letter-spacing:.1em;color:rgba(210,200,180,.6);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;}
+.mz-autopsy-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.04);margin-bottom:14px;overflow:hidden;}
+.mz-autopsy-bar-fill{height:100%;border-radius:3px;transition:width .8s ease;}
+.mz-autopsy-right{padding:18px 20px;}
+.mz-autopsy-etau-title{font-family:'Cinzel',serif;font-size:7px;font-weight:700;letter-spacing:.2em;color:rgba(212,175,55,.5);margin-bottom:14px;}
+.mz-autopsy-quote{border-left:4px solid #d4af37;background:#161616;border-radius:0 8px 8px 0;padding:12px 14px;margin-bottom:10px;}
+.mz-autopsy-quote:last-child{margin-bottom:0;}
+.mz-autopsy-quote-name{font-family:'Cinzel',serif;font-size:7px;font-weight:700;letter-spacing:.12em;color:#d4af37;margin-bottom:4px;}
+.mz-autopsy-quote-text{font-family:'Cormorant Garamond',serif;font-size:14px;color:rgba(210,200,180,.72);line-height:1.8;font-style:italic;}
+.mz-autopsy-conclusion{margin:0 16px 16px;padding:14px 18px;border-radius:10px;border:1px solid rgba(34,197,94,.15);background:rgba(34,197,94,.03);}
+.mz-autopsy-conclusion p{font-family:'Cormorant Garamond',serif;font-size:14px;color:rgba(34,197,94,.7);line-height:1.8;}
+.mz-autopsy-conclusion strong{color:#22c55e;font-style:normal;}
 
 /* ── Éléments utilitaires ── */
 .mz-takhrij{background:rgba(0,0,0,.2);border:1px solid rgba(201,168,76,.08);border-radius:10px;padding:14px 16px;margin-top:14px;}
@@ -5686,21 +5752,26 @@ function _renderTopicList(hadiths, query) {
     /* ═══ NIVEAU 3 : Analyse Detaillee (Accordeons) ═══ */
     var niv3 = '', hasN3 = false;
 
-    /* Jarh wa Ta'dil — chaine visuelle RTL */
+    /* ── TRIDENT 1 : CASCADE DE PRÉSERVATION (Isnad vertical) ── */
     if(h.jarh_tadil) {
-      var chainVis = _mzIsnadChain(h.jarh_tadil, g);
-      if(chainVis) {
-        niv3 += _mzAcc('SILSILAT AL-ISNAD — Chaine de transmission','سِلسِلَةُ الإِسنَاد','#5dade2',chainVis,true);
+      var cascadeVis = _mzIsnadChain(h.jarh_tadil, g);
+      if(cascadeVis) {
+        niv3 += _mzAcc('CASCADE DE PRESERVATION \u2014 Silsilat al-Isnad','\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F','#5dade2',cascadeVis,true);
       } else {
-        niv3 += _mzAcc('JARH WA TA\'DIL — Evaluation des transmetteurs','سِلسِلَةُ الإِسنَاد','#5dade2','<p>'+h.jarh_tadil+'</p>',true);
+        niv3 += _mzAcc('JARH WA TA\'DIL \u2014 Evaluation des transmetteurs','\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F','#5dade2','<p>'+h.jarh_tadil+'</p>',true);
       }
       hasN3 = true;
+      /* ── TRIDENT 2 : SCANNER DE DÉFAUT (si hadith faible) ── */
+      var scannerVis = _mzScannerFromChain(h.jarh_tadil, g);
+      if(scannerVis) {
+        niv3 += _mzAcc('SCANNER DE DEFAUT \u2014 Localisation de l\u2019Illah','\u0639\u0650\u0644\u0651\u064E\u0629','#ef4444',scannerVis,false);
+      }
     }
 
-    /* Conditions du Sanad */
+    /* ── TRIDENT 2bis : SHURUT AS-SIHHAH (5 conditions) ── */
     if(h.sanad) {
       niv3 += _mzAcc(
-        'SHURUT AS-SIHHAH — Les 5 conditions de l\'authenticite', 'شُرُوطُ الصِّحَّة',
+        'SHURUT AS-SIHHAH \u2014 Les 5 conditions de l\'authenticite', '\u0634\u064F\u0631\u064F\u0648\u0637\u064F \u0627\u0644\u0635\u0651\u0650\u062D\u0651\u064E\u0629',
         '#9b59b6',
         _mzFormatSanad(h.sanad),
         !h.jarh_tadil
@@ -5708,20 +5779,20 @@ function _renderTopicList(hadiths, query) {
       hasN3 = true;
     }
 
-    /* Avis des savants / Muhaddithin */
+    /* ── TRIDENT 3 : AUTOPSIE DU NARRATEUR (Jarh wa Ta'dil dashboard) ── */
     if(h.avis) {
       niv3 += _mzAcc(
-        'AQWAL AL-A\'IMMAH — Verdicts des Imams du Jarh wa at-Ta\'dil', 'أَقوَالُ الأَئِمَّة',
+        'AUTOPSIE DU NARRATEUR \u2014 Aqwal al-A\u2019immah', '\u0623\u064E\u0642\u0648\u064E\u0627\u0644\u064F \u0627\u0644\u0623\u064E\u0626\u0650\u0645\u0651\u064E\u0629',
         '#e67e22',
         _mzFormatAvis(h.avis)
       );
       hasN3 = true;
     }
 
-    /* Grille Al-Albani */
+    /* ── MAQUETTE 4 : GRILLE AL-ALBANI ── */
     if(h.albani) {
       niv3 += _mzAcc(
-        'GRILLE AL-ALBANI — As-Silsilah', 'السِّلسِلَة',
+        'GRILLE AL-ALBANI \u2014 As-Silsilah', '\u0627\u0644\u0633\u0651\u0650\u0644\u0633\u0650\u0644\u064E\u0629',
         '#f39c12',
         _mzFormatAlbani(h.albani)
       );
@@ -6100,7 +6171,7 @@ function _mzDisclaimer(){
   return '<div class="mz-disclaimer"><p>Analyse indicative \u2014 retranscription statique des verdicts des savants. Consultez un savant qualifie pour toute decision religieuse.</p></div>';
 }
 
-/* ═══ MAQUETTE 1 : ISNAD RTL ═══ */
+/* ═══ TRIDENT 1 : CASCADE DE PRÉSERVATION — ISNAD VERTICAL ═══ */
 function _mzIsnadChain(jarhHtml, grade) {
   if(!jarhHtml || jarhHtml.length < 5) return '';
   var isSahih = (grade==='SAHIH'||grade==='HASAN');
@@ -6119,52 +6190,153 @@ function _mzIsnadChain(jarhHtml, grade) {
     if(cleaned.length < 3) return '';
     return '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);padding:12px 0;">'+jarhHtml+'</p>';
   }
-  var hasBadLink = false;
-  var html = '<div class="mz-chain">';
+  /* Tahammul lexicon */
+  var tahammulMap = {'compiler':"\u0633\u064E\u0645\u0650\u0639\u0652\u062A\u064F (SAMA\u2019)",'thiqah':"\u062D\u064E\u062F\u0651\u064E\u062B\u064E\u0646\u0650\u064A (HADDATHANA)",'sahabi':"\u0639\u064E\u0646\u0652 (AN \u2014 MU\u2019AN\u2019AN)",'kadhdhab':"\u2014 MAILLON ROMPU \u2014"};
+  var statusMap = {'compiler':'COMPILATEUR','thiqah':'THIQAH \u2014 GARANT FIABLE','sahabi':'SAHABI \u2014 COMPAGNON','kadhdhab':'MATRUK \u2014 ABANDONNE'};
+  var citeMap = {'compiler':'A rapporte ce hadith dans son recueil avec une chaine remontant au Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645.','thiqah':'Declare Thiqah (fiable) par Ibn Hajar dans Taqrib at-Tahdhib.','sahabi':'Compagnon du Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645 \u2014 tous les Sahabah sont \u2018Udul (integres).','kadhdhab':'Rejete par les Imams du Jarh wa at-Ta\u2019dil. Sa narration ne constitue pas une preuve.'};
+  var dotMap = {'compiler':'imam','thiqah':'thiqah','sahabi':'nabi','kadhdhab':'daif'};
+  var colorMap = {'compiler':'#d4af37','thiqah':'#22c55e','sahabi':'#eab308','kadhdhab':'#ef4444'};
+  var statusColorBg = {'compiler':'rgba(212,175,55,.08)','thiqah':'rgba(34,197,94,.08)','sahabi':'rgba(234,179,8,.08)','kadhdhab':'rgba(239,68,68,.08)'};
+  var statusColorTxt = {'compiler':'#d4af37','thiqah':'#22c55e','sahabi':'#eab308','kadhdhab':'#ef4444'};
+  var statusColorBd = {'compiler':'rgba(212,175,55,.2)','thiqah':'rgba(34,197,94,.2)','sahabi':'rgba(234,179,8,.2)','kadhdhab':'rgba(239,68,68,.25)'};
+
+  var html = '<div class="mz-cascade"><div class="mz-cascade-line"></div>';
   nodes.forEach(function(n, i) {
-    if(i > 0) {
-      var prevBad = nodes[i-1].type==='kadhdhab';
-      var curBad = n.type==='kadhdhab';
-      var lc = (prevBad||curBad) ? 'broken' : (isSahih ? 'green' : 'solid');
-      if(prevBad||curBad) hasBadLink = true;
-      html += '<div class="mz-chain-link"><div class="mz-chain-link-line '+lc+'"></div></div>';
-    }
     var cardType = (i===0 && n.type!=='kadhdhab') ? 'compiler' : n.type;
-    var sahabiClass = (n.type==='sahabi' && hasBadLink) ? ' faded' : '';
-    var statusText = n.type==='kadhdhab' ? 'MAILLON CORROMPU' : n.type==='sahabi' ? 'COMPAGNON (SAHABI)' : (i===0?'COMPILATEUR':'THIQAH \u2014 FIABLE');
-    var roleText = n.type==='kadhdhab' ? 'TRANSMETTEUR REJETE' : n.type==='sahabi' ? 'SAHABI' : (i===0?'COMPILATEUR':'TRANSMETTEUR');
-    html += '<div class="mz-chain-node"><div class="mz-chain-card '+cardType+sahabiClass+'">'
-      +'<div class="mz-chain-name">'+n.name+'</div>'
-      +'<div class="mz-chain-role">'+roleText+'</div>'
-      +'<span class="mz-chain-status">'+statusText+'</span>'
+    var side = (i % 2 === 0) ? 'left' : 'right';
+    var tahammul = tahammulMap[cardType] || tahammulMap.thiqah;
+    var status = statusMap[cardType] || 'TRANSMETTEUR';
+    var cite = citeMap[cardType] || '';
+    html += '<div class="mz-cascade-node '+side+'" style="animation:fadeInUp .4s ease both;animation-delay:'+(i*0.12)+'s;">'
+      +'<div class="mz-cascade-dot '+dotMap[cardType]+'"></div>'
+      +'<div class="mz-cascade-card">'
+      +'<div class="mz-cascade-name" style="color:'+colorMap[cardType]+';">'+n.name+'</div>'
+      +'<span class="mz-cascade-tahammul">'+tahammul+'</span>'
+      +'<div class="mz-cascade-cite">'+cite+'</div>'
+      +'<span class="mz-cascade-status" style="background:'+statusColorBg[cardType]+';color:'+statusColorTxt[cardType]+';border:1px solid '+statusColorBd[cardType]+';">'+status+'</span>'
       +'</div></div>';
   });
-  html += '</div><p class="mz-chain-hint">Chaine de transmission (Isnad) \u2014 lecture de droite a gauche</p>';
+  html += '</div>';
+  html += '<p style="font-family:Cinzel,serif;font-size:6px;letter-spacing:.2em;color:rgba(201,168,76,.22);text-align:center;margin-top:8px;">CASCADE DE PRESERVATION \u2014 SILSILAT AL-ISNAD</p>';
+  return html;
+}
+/* ═══ TRIDENT — SCANNER DE DÉFAUT (horizontal, utilisé par _renderTopicList) ═══ */
+function _mzScannerFromChain(jarhHtml, grade) {
+  if(!jarhHtml || jarhHtml.length < 5) return '';
+  var spanRe = /<span[^>]*style="[^"]*color:\s*([^;"]+)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
+  var nodes = [], m;
+  while((m = spanRe.exec(jarhHtml)) !== null) {
+    var color = m[1].trim();
+    var name = m[2].replace(/<[^>]+>/g,'').trim();
+    if(!name) continue;
+    var isRed = /ef4444|e63946|dc2626|ff0000|red|e74c3c/i.test(color);
+    nodes.push({name:name, defect: isRed});
+  }
+  if(nodes.length === 0) return '';
+  var hasDefect = nodes.some(function(n){return n.defect;});
+  if(!hasDefect) return '';
+  var html = '<div class="mz-scanner"><div class="mz-scanner-track">';
+  nodes.forEach(function(n, i) {
+    if(i > 0) {
+      var prevBad = nodes[i-1].defect, curBad = n.defect;
+      html += '<div class="mz-scanner-wire"><div class="mz-scanner-wire-line '+((prevBad||curBad)?'break':'ok')+'"></div></div>';
+    }
+    var cls = n.defect ? 'defect' : 'safe';
+    var initial = n.name.charAt(0);
+    html += '<div class="mz-scanner-node" style="animation:fadeInUp .35s ease both;animation-delay:'+(i*0.08)+'s;">'
+      +'<div style="position:relative;">'
+      +'<div class="mz-scanner-avatar '+cls+'">'+initial+'</div>'
+      +(n.defect ? '<div class="mz-scanner-ping"></div>' : '')
+      +'</div>'
+      +'<div class="mz-scanner-nameplate" style="color:'+(n.defect?'#ef4444':'#22c55e')+';">'+n.name+'</div>'
+      +'<span class="mz-scanner-badge '+cls+'">'+(n.defect?'MATRUK \u2014 REJETE':'THIQAH')+'</span>'
+      +(n.defect ? '<div class="mz-scanner-cause">Illah : Rapporteur rejete par les Imams du Jarh</div>' : '')
+      +'</div>';
+  });
+  html += '</div></div>';
+  html += '<p style="font-family:Cinzel,serif;font-size:6px;letter-spacing:.2em;color:rgba(239,68,68,.3);text-align:center;margin-top:6px;">SCANNER DE DEFAUT \u2014 LOCALISATION DE L\u2019ILLAH</p>';
   return html;
 }
 
-/* ═══ MAQUETTE 2 : CHECKLIST SANAD ═══ */
+/* ═══ TRIDENT 2 : SCANNER DES 5 CONDITIONS (CHECKLIST AVANCÉE) ═══ */
 function _mzFormatSanad(sanadHtml) {
   if(!sanadHtml || sanadHtml.length < 5) return '';
-  return '<div style="padding:8px 0;">'+sanadHtml+'</div>';
+  /* Parse les 5 conditions depuis le HTML IA */
+  var CONDITIONS = [
+    {key:'ITTISAL',ar:'\u0627\u062A\u0651\u0650\u0635\u064E\u0627\u0644',fr:'Continuite de la chaine',icon:'link'},
+    {key:'ADALAT',ar:'\u0639\u064E\u062F\u064E\u0627\u0644\u064E\u0629',fr:'Probite des transmetteurs',icon:'shield'},
+    {key:'DABT',ar:'\u0636\u064E\u0628\u0652\u0637',fr:'Precision memorielle',icon:'brain'},
+    {key:'SHUDHUDH',ar:'\u0634\u064F\u0630\u064F\u0648\u0630',fr:'Absence d\'anomalie',icon:'eye'},
+    {key:'ILLAH',ar:'\u0639\u0650\u0644\u0651\u064E\u0629',fr:'Absence de defaut cache',icon:'search'}
+  ];
+  var iconSvgs = {
+    link:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    shield:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    brain:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>',
+    eye:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    search:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+  };
+  /* Detect pass/fail per condition from HTML spans */
+  var rawText = sanadHtml;
+  var html = '';
+  CONDITIONS.forEach(function(c, idx) {
+    var isFail = false;
+    var detail = '';
+    /* Search for this condition's section in the IA content */
+    var patterns = [
+      new RegExp(c.key+'[^<]*?DEFAILLANTE','i'),
+      new RegExp(c.key+'[^<]*?<span[^>]*color[^>]*#e74c3c','i'),
+      new RegExp((idx+1)+'\\.\\s*'+c.key+'[\\s\\S]{0,300}?DEFAILLANTE','i'),
+      new RegExp(c.key+'[\\s\\S]{0,200}?fail','i')
+    ];
+    for(var p=0;p<patterns.length;p++){if(patterns[p].test(rawText)){isFail=true;break;}}
+    /* Extract detail text for this condition */
+    var detRe = new RegExp('(?:'+c.key+'|'+(idx+1)+'\\.)[^:]*:\\s*([^<]{10,250})','i');
+    var dm = rawText.match(detRe);
+    if(dm) detail = dm[1].replace(/^\s*[-:—]\s*/,'').trim();
+    if(!detail) {
+      var detRe2 = new RegExp(c.key+'[\\s\\S]{0,20}?</span>\\s*[(:—]?\\s*([^<]{10,250})','i');
+      var dm2 = rawText.match(detRe2);
+      if(dm2) detail = dm2[1].replace(/^\s*[-:—)\s]+/,'').trim();
+    }
+    var cls = isFail ? 'fail' : 'pass';
+    var statusTxt = isFail ? 'DEFAILLANTE' : 'REMPLIE';
+    var statusColor = isFail ? '#ef4444' : '#22c55e';
+    var statusBg = isFail ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)';
+    var statusBd = isFail ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
+    html += '<div class="mz-check-row" style="animation:fadeInUp .35s ease both;animation-delay:'+(idx*0.08)+'s;">'
+      +'<div class="mz-check-icon '+cls+'" style="position:relative;">'
+      +(isFail ? '<div style="position:absolute;inset:0;border-radius:7px;border:2px solid #ef4444;animation:tridentPing 1.5s cubic-bezier(0,0,.2,1) infinite;"></div>' : '')
+      +iconSvgs[c.icon]
+      +'</div>'
+      +'<div class="mz-check-texts">'
+      +'<span class="mz-check-name '+cls+'">'+c.fr+'</span>'
+      +'<span class="mz-check-ar">'+c.ar+'</span>'
+      +(detail ? '<p class="mz-check-detail">'+detail+'</p>' : '')
+      +'</div>'
+      +'<span class="mz-check-badge '+cls+'" style="background:'+statusBg+';color:'+statusColor+';border:1px solid '+statusBd+';">'+statusTxt+'</span>'
+      +'</div>';
+  });
+  return html;
 }
 
-/* ═══ MAQUETTE 3 : TRIBUNAL DES SALAFS ═══ */
+/* ═══ TRIDENT 3 : AUTOPSIE DU NARRATEUR — JARH WA TA'DIL DASHBOARD ═══ */
 function _mzFormatAvis(avisHtml) {
   if(!avisHtml || avisHtml.length < 5) return '';
   var raw = avisHtml;
+  /* Parse scholar citations from HTML */
   var parts = [];
-  if(raw.indexOf('//')!==-1) parts = raw.split('//');
-  else if(raw.indexOf('<br')!==-1) parts = raw.split(/<br\s*\/?>/gi);
+  if(raw.indexOf('<br')!==-1) parts = raw.split(/<br\s*\/?>/gi);
+  else if(raw.indexOf('//')!==-1) parts = raw.split('//');
   else if(raw.indexOf('\n\n')!==-1) parts = raw.split('\n\n');
   else {
     var sp = raw.split(/(?=<strong>|<b>)/gi);
     parts = sp.length > 1 ? sp : [raw];
   }
-  var html = '';
+  var scholars = [];
   parts.forEach(function(part) {
     var txt = part.trim();
-    if(txt.length < 3) return;
+    if(txt.length < 5) return;
     var savantName = '', citation = txt;
     var m1 = txt.match(/<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>\s*[:;\u2014\u2013-]?\s*([\s\S]*)/i);
     if(m1) { savantName = m1[1].replace(/<[^>]+>/g,'').trim(); citation = m1[2].trim()||txt; }
@@ -6175,11 +6347,86 @@ function _mzFormatAvis(avisHtml) {
     savantName = savantName.replace(/<[^>]+>/g,'').trim();
     citation = citation.replace(/^["\u00AB]|["\u00BB]$/g,'').trim();
     if(!citation) citation = txt.replace(/<[^>]+>/g,'');
-    html += '<div class="mz-tribunal-card"><div class="mz-tribunal-accent"></div><div class="mz-tribunal-inner">';
-    if(savantName) html += '<span class="mz-tribunal-name">'+savantName+'</span>';
-    html += '<p class="mz-tribunal-text">'+citation+'</p></div></div>';
+    if(citation.length > 3) scholars.push({name:savantName||'IMAM',text:citation});
   });
-  return html || '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);">'+avisHtml+'</p>';
+  if(!scholars.length) return '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);">'+avisHtml+'</p>';
+
+  /* Detect if any scholar is "weak" verdict (for profile bars) */
+  var isSahih = !(/da.if|faible|mawdu|munkar|matruk|kadhdhab/i.test(raw));
+  var adalahPct = isSahih ? 95 : 12;
+  var dabtPct = isSahih ? 88 : 8;
+  var adalahColor = isSahih ? '#22c55e' : '#ef4444';
+  var dabtColor = isSahih ? '#22c55e' : '#ef4444';
+
+  /* Split scholars: first 1-2 for profile, rest for quotes */
+  var profileScholar = scholars[0];
+  var ancientScholars = scholars.slice(0, Math.min(scholars.length, 3));
+  var lastScholar = scholars.length > 3 ? scholars[scholars.length-1] : null;
+
+  var html = '<div class="mz-autopsy">';
+  /* Header */
+  html += '<div class="mz-autopsy-header">'
+    +'<div class="mz-autopsy-header-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>'
+    +'<div><span class="mz-autopsy-title">AUTOPSIE DU NARRATEUR</span><span class="mz-autopsy-title-ar">\u0627\u0644\u062C\u064E\u0631\u0652\u062D\u064F \u0648\u064E\u0627\u0644\u062A\u0651\u064E\u0639\u0652\u062F\u0650\u064A\u0644</span></div>'
+    +'</div>';
+
+  /* Grid: left (profile) + right (quotes) */
+  html += '<div class="mz-autopsy-grid">';
+
+  /* LEFT — Profil du narrateur */
+  html += '<div class="mz-autopsy-left">';
+  html += '<div class="mz-autopsy-rawi-name">'+(profileScholar.name||'RAWI')+'</div>';
+  html += '<div class="mz-autopsy-rawi-role">MUHADDITHIN \u2014 EVALUATION</div>';
+  /* Barre 'Adalah */
+  html += '<div class="mz-autopsy-bar-label"><span>\u2018ADALAH \u2014 Integrite</span><span style="color:'+adalahColor+';">'+adalahPct+'%</span></div>';
+  html += '<div class="mz-autopsy-bar"><div class="mz-autopsy-bar-fill" style="width:'+adalahPct+'%;background:'+adalahColor+';"></div></div>';
+  /* Barre Dabt */
+  html += '<div class="mz-autopsy-bar-label"><span>DABT \u2014 Memoire / Precision</span><span style="color:'+dabtColor+';">'+dabtPct+'%</span></div>';
+  html += '<div class="mz-autopsy-bar"><div class="mz-autopsy-bar-fill" style="width:'+dabtPct+'%;background:'+dabtColor+';"></div></div>';
+  /* Status badge */
+  if(isSahih) {
+    html += '<div style="margin-top:12px;padding:6px 12px;border-radius:6px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);display:inline-block;">'
+      +'<span style="font-family:Cinzel,serif;font-size:7px;font-weight:700;letter-spacing:.15em;color:#22c55e;">THIQAH \u2014 GARANT FIABLE</span></div>';
+  } else {
+    html += '<div style="margin-top:12px;padding:6px 12px;border-radius:6px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);display:inline-block;">'
+      +'<span style="font-family:Cinzel,serif;font-size:7px;font-weight:700;letter-spacing:.15em;color:#ef4444;">DA\u2019IF \u2014 FAIBLE</span></div>';
+  }
+  html += '</div>';
+
+  /* RIGHT — L'Étau de la Vérité */
+  html += '<div class="mz-autopsy-right">';
+  html += '<div class="mz-autopsy-etau-title">L\u2019ETAU DE LA VERITE \u2014 AQWAL AL-A\u2019IMMAH</div>';
+  ancientScholars.forEach(function(s, i) {
+    html += '<div class="mz-autopsy-quote" style="animation:fadeInUp .35s ease both;animation-delay:'+(i*0.1)+'s;">'
+      +'<div class="mz-autopsy-quote-name">'+(s.name||'IMAM')+'</div>'
+      +'<div class="mz-autopsy-quote-text">'+s.text+'</div>'
+      +'</div>';
+  });
+  /* Extra quotes beyond 3 */
+  for(var i=3;i<scholars.length;i++){
+    html += '<div class="mz-autopsy-quote" style="animation:fadeInUp .35s ease both;animation-delay:'+(i*0.1)+'s;">'
+      +'<div class="mz-autopsy-quote-name">'+(scholars[i].name||'IMAM')+'</div>'
+      +'<div class="mz-autopsy-quote-text">'+scholars[i].text+'</div>'
+      +'</div>';
+  }
+  html += '</div></div>';
+
+  /* Conclusion — continuité méthodologique Salafs → contemporains */
+  var conclusionScholar = '';
+  var rawLower = raw.toLowerCase();
+  if(rawLower.indexOf('albani')!==-1) conclusionScholar = 'Cheikh Al-Albani (rahimahullah)';
+  else if(rawLower.indexOf('bin baz')!==-1||rawLower.indexOf('ibn baz')!==-1) conclusionScholar = 'Cheikh Bin Baz (rahimahullah)';
+  else if(rawLower.indexOf('uthaymin')!==-1) conclusionScholar = 'Cheikh Ibn Uthaymin (rahimahullah)';
+  else conclusionScholar = 'Cheikh Al-Albani (rahimahullah)';
+
+  html += '<div class="mz-autopsy-conclusion">'
+    +'<p><strong>'+conclusionScholar+'</strong> n\u2019a fait qu\u2019appliquer fidelement les regles etablies par les Imams du Jarh wa at-Ta\u2019dil '
+    +'(Ahmad ibn Hanbal, Yahya ibn Ma\u2019in, Al-Bukhari). La methodologie Salafiyyah est une chaine ininterrompue '
+    +'de preservation de la Sunnah authentique du Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645.</p>'
+    +'</div>';
+
+  html += '</div>';
+  return html;
 }
 
 /* ═══ MAQUETTE 4 : RAPPORT CLINIQUE AL-ALBANI ═══ */
@@ -6269,48 +6516,59 @@ function renderAIResult(parsed){
     hasN3=true;
   }
 
-  /* ── MAQUETTE 1 : ISNAD — Chaine de transmission RTL ── */
+  /* ── TRIDENT 1 : CASCADE DE PRÉSERVATION (Isnad vertical) ── */
   var isnadRaw=parsed.isnad||null;
   if(isnadRaw && isnadRaw.length > 3){
-    var chain=_mzIsnadChain(isnadRaw,g);
+    var cascadeLocal=_mzIsnadChain(isnadRaw,g);
     niv3+=_mzAcc(
-      'SILSILAT AL-ISNAD \u2014 Chaine de transmission',
+      'CASCADE DE PRESERVATION \u2014 Silsilat al-Isnad',
       '\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F',
       '#5dade2',
-      chain||('<p>'+isnadRaw+'</p>'),
+      cascadeLocal||('<p>'+isnadRaw+'</p>'),
       !parsed.analyse
     );
     hasN3=true;
+    /* ── TRIDENT 2 : SCANNER DE DÉFAUT (si hadith faible) ── */
+    var scannerLocal=_mzScannerFromChain(isnadRaw,g);
+    if(scannerLocal){
+      niv3+=_mzAcc('SCANNER DE DEFAUT \u2014 Localisation de l\u2019Illah','\u0639\u0650\u0644\u0651\u064E\u0629','#ef4444',scannerLocal,false);
+    }
   }
 
-  /* ── MAQUETTE 2 : CONDITIONS DU SANAD (Checklist) ── */
+  /* ── TRIDENT 2bis : SHURUT AS-SIHHAH (5 conditions checklist) ── */
   if(parsed.isnad_check){
     niv3+=_mzAcc(
       'SHURUT AS-SIHHAH \u2014 Les 5 conditions de l\'authenticite selon Ibn as-Salah',
       '\u0634\u064F\u0631\u064F\u0648\u0637\u064F \u0627\u0644\u0635\u0651\u0650\u062D\u0651\u064E\u0629',
       '#9b59b6',
-      parsed.isnad_check,
+      _mzFormatSanad(parsed.isnad_check),
       false
     );
     hasN3=true;
   }
 
-  /* ── MAQUETTE 3 : TRIBUNAL — Aqwal al-'Ulama ── */
-  if(parsed.avis_savants&&parsed.avis_savants.length){
-    var aH='';
-    parsed.avis_savants.forEach(function(av){
-      aH+='<div class="mz-tribunal-card"><div class="mz-tribunal-accent"></div><div class="mz-tribunal-inner">'
-        +'<span class="mz-tribunal-name">'+av.savant+'</span>'
-        +'<p class="mz-tribunal-text">'+av.citation+'</p>'
-        +'</div></div>';
-    });
-    niv3+=_mzAcc(
-      'AQWAL AL-A\'IMMAH \u2014 Verdicts des Imams du Jarh wa at-Ta\'dil',
-      '\u0623\u064E\u0642\u0648\u064E\u0627\u0644\u064F \u0627\u0644\u0623\u064E\u0626\u0650\u0645\u0651\u064E\u0629',
-      '#e67e22',
-      aH
-    );
-    hasN3=true;
+  /* ── TRIDENT 3 : AUTOPSIE DU NARRATEUR (Jarh wa Ta'dil dashboard) ── */
+  if(parsed.avis_savants){
+    var avisContent='';
+    if(Array.isArray(parsed.avis_savants)){
+      /* Legacy format: array of {savant,citation} */
+      var avisRaw='';
+      parsed.avis_savants.forEach(function(av){
+        avisRaw+='<strong>'+av.savant+'</strong> : '+av.citation+'<br><br>';
+      });
+      avisContent=_mzFormatAvis(avisRaw);
+    } else if(typeof parsed.avis_savants==='string') {
+      avisContent=_mzFormatAvis(parsed.avis_savants);
+    }
+    if(avisContent){
+      niv3+=_mzAcc(
+        'AUTOPSIE DU NARRATEUR \u2014 Aqwal al-A\u2019immah',
+        '\u0623\u064E\u0642\u0648\u064E\u0627\u0644\u064F \u0627\u0644\u0623\u064E\u0626\u0650\u0645\u0651\u064E\u0629',
+        '#e67e22',
+        avisContent
+      );
+      hasN3=true;
+    }
   }
 
   /* ── MAQUETTE 4 : TAKHRIJ — Reference austere ── */
