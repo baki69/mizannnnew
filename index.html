@@ -5752,34 +5752,42 @@ function _renderTopicList(hadiths, query) {
     /* ═══ NIVEAU 3 : Analyse Detaillee (Accordeons) ═══ */
     var niv3 = '', hasN3 = false;
 
-    /* ── TRIDENT 1 : CASCADE DE PRÉSERVATION (Isnad vertical) ── */
+    /* ══════════════════════════════════════════════════════════
+       TRIDENT 1 : CASCADE DE PRÉSERVATION (PRIORITÉ ABSOLUE)
+       Injecté DIRECTEMENT — PAS dans un accordéon — pleine vue
+    ══════════════════════════════════════════════════════════ */
     if(h.jarh_tadil) {
       var cascadeVis = _mzIsnadChain(h.jarh_tadil, g);
       if(cascadeVis) {
-        niv3 += _mzAcc('CASCADE DE PRESERVATION \u2014 Silsilat al-Isnad','\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F','#5dade2',cascadeVis,true);
+        /* Injection directe sans accordéon — la Cascade est le héros visuel */
+        niv3 += cascadeVis;
       } else {
         niv3 += _mzAcc('JARH WA TA\'DIL \u2014 Evaluation des transmetteurs','\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F','#5dade2','<p>'+h.jarh_tadil+'</p>',true);
       }
       hasN3 = true;
-      /* ── TRIDENT 2 : SCANNER DE DÉFAUT (si hadith faible) ── */
+    }
+
+    /* ── SECTIONS SECONDAIRES (activées après validation Cascade) ── */
+    /* TRIDENT 2 : Scanner de Défaut */
+    if(h.jarh_tadil) {
       var scannerVis = _mzScannerFromChain(h.jarh_tadil, g);
       if(scannerVis) {
         niv3 += _mzAcc('SCANNER DE DEFAUT \u2014 Localisation de l\u2019Illah','\u0639\u0650\u0644\u0651\u064E\u0629','#ef4444',scannerVis,false);
       }
     }
 
-    /* ── TRIDENT 2bis : SHURUT AS-SIHHAH (5 conditions) ── */
+    /* SHURUT AS-SIHHAH — 5 conditions */
     if(h.sanad) {
       niv3 += _mzAcc(
         'SHURUT AS-SIHHAH \u2014 Les 5 conditions de l\'authenticite', '\u0634\u064F\u0631\u064F\u0648\u0637\u064F \u0627\u0644\u0635\u0651\u0650\u062D\u0651\u064E\u0629',
         '#9b59b6',
         _mzFormatSanad(h.sanad),
-        !h.jarh_tadil
+        false
       );
       hasN3 = true;
     }
 
-    /* ── TRIDENT 3 : AUTOPSIE DU NARRATEUR (Jarh wa Ta'dil dashboard) ── */
+    /* AUTOPSIE DU NARRATEUR — Aqwal al-A'immah */
     if(h.avis) {
       niv3 += _mzAcc(
         'AUTOPSIE DU NARRATEUR \u2014 Aqwal al-A\u2019immah', '\u0623\u064E\u0642\u0648\u064E\u0627\u0644\u064F \u0627\u0644\u0623\u064E\u0626\u0650\u0645\u0651\u064E\u0629',
@@ -5789,7 +5797,7 @@ function _renderTopicList(hadiths, query) {
       hasN3 = true;
     }
 
-    /* ── MAQUETTE 4 : GRILLE AL-ALBANI ── */
+    /* GRILLE AL-ALBANI */
     if(h.albani) {
       niv3 += _mzAcc(
         'GRILLE AL-ALBANI \u2014 As-Silsilah', '\u0627\u0644\u0633\u0651\u0650\u0644\u0633\u0650\u0644\u064E\u0629',
@@ -6171,92 +6179,138 @@ function _mzDisclaimer(){
   return '<div class="mz-disclaimer"><p>Analyse indicative \u2014 retranscription statique des verdicts des savants. Consultez un savant qualifie pour toute decision religieuse.</p></div>';
 }
 
-/* ═══ TRIDENT 1 : CASCADE DE PRÉSERVATION — ISNAD VERTICAL (TAILWIND EXACT) ═══ */
+/* ═══ TRIDENT 1 : CASCADE DE PRÉSERVATION — ISNAD VERTICAL (MAQUETTE EXACTE) ═══ */
 function _mzIsnadChain(jarhHtml, grade) {
   if(!jarhHtml || jarhHtml.length < 5) return '';
   var isSahih = (grade==='SAHIH'||grade==='HASAN');
-  /* ── Parse : extraire les narrateurs depuis les <span> colorés ── */
+
+  /* ══════════════════════════════════════════════════════════════
+     ÉTAPE 1 — PARSER : Extraire chaque narrateur du HTML de l'IA
+     L'IA renvoie des <span style="color:...">NOM</span>
+     Couleur → type : bleu=sahabi, rouge=kadhdhab, autre=thiqah
+  ══════════════════════════════════════════════════════════════ */
   var spanRe = /<span[^>]*style="[^"]*color:\s*([^;"]+)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
-  var nodes = [], m;
-  while((m = spanRe.exec(jarhHtml)) !== null) {
-    var color = m[1].trim();
-    var name = m[2].replace(/<[^>]+>/g,'').trim();
-    if(!name) continue;
+  var nodes = [], mm;
+  while((mm = spanRe.exec(jarhHtml)) !== null) {
+    var color = mm[1].trim();
+    var name = mm[2].replace(/<[^>]+>/g,'').trim();
+    if(!name || name.length < 2) continue;
     var isRed = /ef4444|e63946|dc2626|ff0000|red|e74c3c/i.test(color);
     var isBlue = /5dade2|3b82f6|60a5fa|blue/i.test(color);
-    nodes.push({name:name, type: isRed?'kadhdhab': isBlue?'sahabi':'thiqah'});
+    nodes.push({name:name, type: isRed ? 'kadhdhab' : isBlue ? 'sahabi' : 'thiqah'});
   }
+
+  /* Fallback : si aucun <span> coloré, essayer de parser des noms en bold */
+  if(nodes.length === 0) {
+    var boldRe = /<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>/gi;
+    var bm;
+    while((bm = boldRe.exec(jarhHtml)) !== null) {
+      var bname = bm[1].replace(/<[^>]+>/g,'').trim();
+      if(bname.length >= 2) nodes.push({name:bname, type:'thiqah'});
+    }
+  }
+
+  /* Fallback ultime : extraire les noms arabes bruts */
+  if(nodes.length === 0) {
+    var arNames = jarhHtml.replace(/<[^>]+>/g,' ').match(/[\u0600-\u06FF][\u0600-\u06FF\s]{3,30}/g);
+    if(arNames && arNames.length) {
+      arNames.slice(0, 6).forEach(function(n) {
+        nodes.push({name:n.trim(), type:'thiqah'});
+      });
+    }
+  }
+
+  /* Si toujours rien, texte brut fallback */
   if(nodes.length === 0) {
     var cleaned = jarhHtml.replace(/<[^>]+>/g,' ').trim();
     if(cleaned.length < 3) return '';
     return '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);padding:12px 0;">'+jarhHtml+'</p>';
   }
-  /* ── Dictionnaires par type de narrateur ── */
-  var tahammulMap = {
-    compiler:"SAMA\u2019 \u2014 \u0633\u064E\u0645\u0650\u0639\u0652\u062A\u064F",
-    thiqah:"HADDATHANA \u2014 \u062D\u064E\u062F\u0651\u064E\u062B\u064E\u0646\u0650\u064A",
-    sahabi:"\u2018AN \u2014 \u0639\u064E\u0646\u0652",
-    kadhdhab:"MAILLON ROMPU"
-  };
-  var citeMap = {
-    compiler:"A compile et rapporte ce hadith dans son recueil avec un isnad remontant au Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645.",
-    thiqah:"Declare Thiqah (garant fiable) par Ibn Hajar al-Asqalani dans Taqrib at-Tahdhib, et confirme par Al-Dhahabi dans Siyar A\u2019lam an-Nubala\u2019.",
-    sahabi:"Compagnon du Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645 \u2014 tous les Sahabah sont \u2018Udul (integres) par consensus (Ijma\u2019) des savants de Ahl as-Sunnah.",
-    kadhdhab:"Rejete par les Imams du Jarh wa at-Ta\u2019dil (Ahmad, Ibn Ma\u2019in, Al-Bukhari). Sa narration ne constitue pas une preuve (hujjah)."
-  };
-  var borderMap = {compiler:'border-[#d4af37]',thiqah:'border-[#d4af37]',sahabi:'border-yellow-500',kadhdhab:'border-red-500'};
-  var dotBorderMap = {compiler:'border-[#d4af37]',thiqah:'border-[#d4af37]',sahabi:'border-yellow-500',kadhdhab:'border-red-500'};
-  var mechColorMap = {compiler:'text-[#d4af37]',thiqah:'text-green-500',sahabi:'text-yellow-500',kadhdhab:'text-red-500'};
-  var nameColorMap = {compiler:'text-[#d4af37]',thiqah:'text-white',sahabi:'text-yellow-400',kadhdhab:'text-red-400'};
-  var arrowSymbol = {compiler:'\u2193',thiqah:'\u2193',sahabi:'\u2606',kadhdhab:'\u2717'};
 
-  /* ── Conteneur parent : timeline verticale ── */
-  var html = '<div class="relative max-w-4xl mx-auto py-8">';
-  /* Ligne gradient centrale */
-  html += '<div class="absolute left-1/2 transform -translate-x-1/2 w-1.5 bg-gradient-to-b from-yellow-400 to-green-600 h-full z-0 rounded-full"></div>';
+  /* ══════════════════════════════════════════════════════════════
+     ÉTAPE 2 — DICTIONNAIRES : Données par type de narrateur
+  ══════════════════════════════════════════════════════════════ */
+  var RAWI_DATA = {
+    compiler: {
+      method: "SAMA\u2019 \u2014 Audition directe",
+      role:   "COMPILATEUR \u2014 Auteur du recueil",
+      status: "A compile et transmis ce hadith dans son recueil avec un isnad remontant au Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645.",
+      border: 'border-[#d4af37]', dotBorder: 'border-[#d4af37]',
+      mechColor: 'text-[#d4af37]', nameColor: 'text-[#d4af37]'
+    },
+    thiqah: {
+      method: "HADDATHANA \u2014 Transmission orale",
+      role:   "TRANSMETTEUR \u2014 Maillon de la Cha\u00eene",
+      status: "D\u00e9clar\u00e9 Thiqah (garant fiable) par Ibn Hajar dans Taqrib at-Tahdhib. Confirm\u00e9 par Al-Dhahabi.",
+      border: 'border-[#d4af37]', dotBorder: 'border-[#d4af37]',
+      mechColor: 'text-green-500', nameColor: 'text-white'
+    },
+    sahabi: {
+      method: "\u2018AN \u2014 Transmission indirecte",
+      role:   "SAHABI \u2014 Compagnon du Prophete \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645",
+      status: "Compagnon du Proph\u00e8te \u0635\u0644\u0649 \u0627\u0644\u0644\u0647 \u0639\u0644\u064A\u0647 \u0648\u0633\u0644\u0645 \u2014 tous les Sahabah sont \u2018Udul (int\u00e8gres) par Ijma\u2019.",
+      border: 'border-yellow-500', dotBorder: 'border-yellow-500',
+      mechColor: 'text-yellow-500', nameColor: 'text-yellow-400'
+    },
+    kadhdhab: {
+      method: "MAILLON ROMPU",
+      role:   "TRANSMETTEUR REJETE",
+      status: "Rejet\u00e9 par Ahmad, Ibn Ma\u2019in et Al-Bukhari. Sa narration ne constitue aucune preuve (hujjah).",
+      border: 'border-red-500', dotBorder: 'border-red-500',
+      mechColor: 'text-red-500', nameColor: 'text-red-400'
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     ÉTAPE 3 — GÉNÉRER LE HTML TAILWIND EXACT (MAQUETTE CLIENT)
+  ══════════════════════════════════════════════════════════════ */
+  var html = '';
+
+  /* ── Conteneur parent avec ligne gradient centrale ── */
+  html += '<div class="relative max-w-4xl mx-auto py-8">';
+  html += '<div class="absolute left-1/2 -translate-x-1/2 w-1.5 bg-gradient-to-b from-yellow-400 to-green-600 h-full z-0 shadow-[0_0_15px_rgba(212,175,55,0.4)]"></div>';
 
   nodes.forEach(function(n, i) {
-    var t = (i===0 && n.type!=='kadhdhab') ? 'compiler' : n.type;
-    var tahammul = tahammulMap[t] || tahammulMap.thiqah;
-    var cite = citeMap[t] || '';
-    var bCard = borderMap[t];
-    var bDot = dotBorderMap[t];
-    var mechCol = mechColorMap[t];
-    var nameCol = nameColorMap[t];
-    var arrow = arrowSymbol[t];
-    var dotBg = (t==='kadhdhab') ? 'bg-red-950' : 'bg-black';
-    var arrowCol = (t==='kadhdhab') ? 'text-red-500' : 'text-white';
+    var t = (i === 0 && n.type !== 'kadhdhab') ? 'compiler' : n.type;
+    var d = RAWI_DATA[t] || RAWI_DATA.thiqah;
+    var rawiId = i + 1;
+    var isDefect = (t === 'kadhdhab');
+    var dotBg = isDefect ? 'bg-red-950' : 'bg-black';
+    var dotTextCol = isDefect ? 'text-red-500' : 'text-[#d4af37]';
     var delay = (i * 0.15);
 
-    html += '<div class="relative z-10 flex items-center justify-center gap-8 mb-16" style="animation:fadeInUp .45s ease both;animation-delay:'+delay+'s;">';
+    /* ── ROW : un narrateur complet ── */
+    html += '<div class="relative z-10 flex items-center justify-center gap-8 mb-16" style="animation:fadeInUp .5s ease both;animation-delay:'+delay+'s;">';
 
-    /* ── GAUCHE : Mécanisme (Tahammul) ── */
+    /* ══ GAUCHE : Mécanisme (Tahammul) ══ */
     html += '<div class="w-1/2 flex justify-end">'
-      +'<div class="bg-[#1a140a] border border-[#d4af37]/30 px-5 py-3 rounded-lg text-right max-w-[250px]">'
-      +'<span class="text-[9px] text-gray-500 uppercase tracking-widest block" style="font-family:Cinzel,serif;">M\u00e9canisme (Tahammul)</span>'
-      +'<span class="font-black text-sm uppercase '+mechCol+'" style="font-family:Cinzel,serif;">'+tahammul+'</span>'
-      +'</div></div>';
+      + '<div class="bg-[#1a140a] border border-[#d4af37]/30 px-5 py-3 rounded-lg text-right max-w-[250px] shadow-lg">'
+      +   '<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">M\u00e9canisme (Tahammul)</span>'
+      +   '<span class="font-black text-sm uppercase '+d.mechColor+'" style="font-family:Cinzel,serif;">'+d.method+'</span>'
+      + '</div>'
+      + '</div>';
 
-    /* ── POINT CENTRAL ── */
-    html += '<div class="absolute left-1/2 transform -translate-x-1/2 w-12 h-12 rounded-full '+dotBg+' border-4 '+bDot+' flex items-center justify-center z-20"'
-      +(t==='kadhdhab' ? ' style="box-shadow:0 0 20px rgba(239,68,68,.4);"' : ' style="box-shadow:0 0 12px rgba(212,175,55,.25);"')
-      +'><span class="'+arrowCol+' text-xs font-bold">'+arrow+'</span></div>';
+    /* ══ POINT CENTRAL (DOT) ══ */
+    html += '<div class="absolute left-1/2 transform -translate-x-1/2 w-12 h-12 rounded-full '+dotBg+' border-4 '+d.dotBorder+' flex items-center justify-center z-20 shadow-[0_0_20px_rgba(0,0,0,1)]">'
+      + '<span class="'+dotTextCol+' text-xs font-bold">'+rawiId+'</span>'
+      + '</div>';
 
-    /* ── DROITE : Carte narrateur ── */
+    /* ══ DROITE : Carte narrateur ══ */
     html += '<div class="w-1/2 flex justify-start">'
-      +'<div class="bg-[#111] p-5 rounded-xl border-l-4 '+bCard+' max-w-[320px]"'
-      +(t==='kadhdhab' ? ' style="box-shadow:0 0 15px rgba(239,68,68,.1);"' : '')
-      +'>'
-      +'<h3 class="text-lg font-black '+nameCol+'" style="font-family:\'Scheherazade New\',serif;">'+n.name+'</h3>'
-      +'<div class="bg-black/60 p-3 rounded border border-gray-800 mt-2">'
-      +'<span class="text-[9px] text-gray-500 uppercase block mb-1" style="font-family:Cinzel,serif;letter-spacing:.15em;">Authentification Salafi</span>'
-      +'<p class="text-xs text-gray-300 italic" style="font-family:\'Cormorant Garamond\',serif;line-height:1.7;">\u00ab '+cite+' \u00bb</p>'
-      +'</div></div></div>';
+      + '<div class="bg-[#111] p-5 rounded-xl border-l-4 '+d.border+' shadow-2xl max-w-[320px]">'
+      +   '<h3 class="text-xl font-black '+d.nameColor+' mb-1" style="font-family:\'Scheherazade New\',serif;">'+n.name+'</h3>'
+      +   '<p class="text-xs text-gray-400 uppercase tracking-widest mb-3" style="font-family:Cinzel,serif;">'+d.role+'</p>'
+      +   '<div class="bg-black/60 p-3 rounded border border-gray-800 border-l-2 '+d.border+'">'
+      +     '<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">Authentification des Anciens</span>'
+      +     '<p class="text-xs text-gray-300 italic font-medium" style="font-family:\'Cormorant Garamond\',serif;line-height:1.7;">\u00ab '+d.status+' \u00bb</p>'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
 
     html += '</div>'; /* /row */
   });
 
-  html += '</div>'; /* /container */
+  html += '</div>'; /* /conteneur parent */
   html += '<p style="font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.25em;color:rgba(201,168,76,.25);text-align:center;margin-top:10px;">CASCADE DE PRESERVATION \u2014 SILSILAT AL-ISNAD</p>';
   return html;
 }
@@ -6607,19 +6661,17 @@ function renderAIResult(parsed){
     hasN3=true;
   }
 
-  /* ── TRIDENT 1 : CASCADE DE PRÉSERVATION (Isnad vertical) ── */
+  /* ══ TRIDENT 1 : CASCADE DE PRÉSERVATION (injection directe, pas d'accordéon) ══ */
   var isnadRaw=parsed.isnad||null;
   if(isnadRaw && isnadRaw.length > 3){
     var cascadeLocal=_mzIsnadChain(isnadRaw,g);
-    niv3+=_mzAcc(
-      'CASCADE DE PRESERVATION \u2014 Silsilat al-Isnad',
-      '\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F',
-      '#5dade2',
-      cascadeLocal||('<p>'+isnadRaw+'</p>'),
-      !parsed.analyse
-    );
+    if(cascadeLocal) {
+      niv3+=cascadeLocal;
+    } else {
+      niv3+=_mzAcc('JARH WA TA\'DIL','\u0633\u0650\u0644\u0633\u0650\u0644\u064E\u0629\u064F \u0627\u0644\u0625\u0650\u0633\u0646\u064E\u0627\u062F','#5dade2','<p>'+isnadRaw+'</p>',!parsed.analyse);
+    }
     hasN3=true;
-    /* ── TRIDENT 2 : SCANNER DE DÉFAUT (si hadith faible) ── */
+    /* Scanner de Défaut */
     var scannerLocal=_mzScannerFromChain(isnadRaw,g);
     if(scannerLocal){
       niv3+=_mzAcc('SCANNER DE DEFAUT \u2014 Localisation de l\u2019Illah','\u0639\u0650\u0644\u0651\u064E\u0629','#ef4444',scannerLocal,false);
