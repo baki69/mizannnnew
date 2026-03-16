@@ -6189,172 +6189,394 @@ function _mzDisclaimer(){
 
    Dépendances : Tailwind CDN + Google Fonts (Cinzel, Scheherazade New, Cormorant Garamond)
 ══════════════════════════════════════════════════════════════════════════ */
-function _mzIsnadChain(jarhHtml, grade) {
-  if (!jarhHtml || jarhHtml.length < 5) return '';
-  var isSahih = (grade === 'SAHIH' || grade === 'HASAN');
-  /* ══════════════════════════════════════════════════════════════
-     ÉTAPE 1 — PARSER : Extraire chaque narrateur du HTML de l'IA
-     L'IA renvoie des <span style="color:...">NOM</span>
-     Couleur → type : bleu=sahabi, rouge=kadhdhab, autre=thiqah
-  ══════════════════════════════════════════════════════════════ */
-  var spanRe = /<span[^>]*style="[^"]*color:\s*([^;"]+)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
-  var nodes = [], mm;
-  while ((mm = spanRe.exec(jarhHtml)) !== null) {
-    var color = mm[1].trim();
-    var name  = mm[2].replace(/<[^>]+>/g, '').trim();
-    if (!name || name.length < 2) continue;
-    var isRed  = /ef4444|e63946|dc2626|ff0000|red|e74c3c/i.test(color);
-    var isBlue = /5dade2|3b82f6|60a5fa|blue/i.test(color);
-    nodes.push({ name: name, type: isRed ? 'kadhdhab' : isBlue ? 'sahabi' : 'thiqah' });
+/* ══════════════════════════════════════════════════════════════════════════════════
+   TRIDENT AL-MÎZÂN — COMPOSANT 1 · VERSION DÉFINITIVE
+   LA CASCADE DE PRÉSERVATION  ·  سِلسِلَةُ الإِسنَاد  ·  14 SIÈCLES DE PRÉSERVATION
+   
+   DESIGN VALIDÉ — AUCUNE MODIFICATION DES CLASSES TAILWIND
+   Drop-in replacement : _mzIsnadChain(jarhHtml, grade)
+   
+   8 MAILLONS :
+     1. Prophète ﷺ  2. 'Abdullah ibn 'Umar  3. Nafi'  4. Malik
+     5. 'Abdullah ibn Yusuf al-Tinnisi  6. Al-Bukhari
+     7. Les Savants du Salaf (Fondateurs)  8. Les Vérificateurs Contemporains
+   
+   Dépendances : Tailwind CDN · Cinzel · Cormorant Garamond · Scheherazade New
+══════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── CSS (injection unique) ── */
+(function(){
+  if(document.getElementById('mz-casc2-css')) return;
+  var s=document.createElement('style'); s.id='mz-casc2-css';
+  s.textContent=[
+    '@keyframes mzCasc2In{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}',
+    '.mzC2-card{cursor:pointer;transition:border-color .3s,box-shadow .3s,transform .22s;}',
+    '.mzC2-card:hover{border-color:rgba(212,175,55,.55)!important;box-shadow:0 0 30px rgba(212,175,55,.1),0 8px 32px rgba(0,0,0,.5)!important;transform:translateX(3px);}',
+    '.mzC2-mech{cursor:pointer;transition:border-color .3s,box-shadow .3s,transform .22s;}',
+    '.mzC2-mech:hover{border-color:rgba(212,175,55,.5)!important;box-shadow:0 0 18px rgba(212,175,55,.08)!important;transform:translateX(-3px);}',
+    '.mzC2-chev{width:14px;height:14px;stroke:rgba(212,175,55,.3);transition:transform .35s cubic-bezier(.4,0,.2,1),stroke .3s;flex-shrink:0;}',
+    '.mzC2-open .mzC2-chev{transform:rotate(180deg);stroke:#d4af37;}',
+    '.mzC2-panel{max-height:0;overflow:hidden;transition:max-height .6s cubic-bezier(.4,0,.2,1),opacity .45s ease;opacity:0;}',
+    '.mzC2-panel.mzC2-vis{max-height:2200px;opacity:1;}',
+    '.mzC2-pinner{padding:18px 22px 22px;border:1px solid rgba(212,175,55,.1);border-top:none;border-radius:0 0 14px 14px;background:linear-gradient(180deg,rgba(10,6,0,.85),rgba(17,24,39,.6));margin:0 auto;max-width:700px;}',
+    '.mzC2-row-i{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;}',
+    '.mzC2-row-i:last-child{margin-bottom:0;}',
+    '.mzC2-ico{width:30px;height:30px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}',
+    '.mzC2-lbl{font-family:Cinzel,serif;font-size:7px;font-weight:700;letter-spacing:.22em;color:rgba(212,175,55,.45);display:block;margin-bottom:3px;}',
+    '.mzC2-val{font-family:"Cormorant Garamond",serif;font-size:13.5px;color:rgba(220,210,180,.78);line-height:1.75;font-style:italic;}',
+    '.mzC2-val strong{color:#d4af37;font-style:normal;}',
+    '.mzC2-val em{color:rgba(212,175,55,.6);font-style:italic;}',
+    '.mzC2-badge{display:inline-block;font-family:Cinzel,serif;font-size:7.5px;font-weight:700;letter-spacing:.15em;padding:4px 16px;border-radius:6px;}',
+    '.mzC2-badge.g{background:rgba(212,175,55,.08);color:#d4af37;border:1px solid rgba(212,175,55,.25);}',
+    '.mzC2-badge.s{background:rgba(34,197,94,.07);color:#22c55e;border:1px solid rgba(34,197,94,.2);}',
+    '.mzC2-badge.r{background:rgba(239,68,68,.07);color:#ef4444;border:1px solid rgba(239,68,68,.22);}',
+    '.mzC2-badge.p{background:rgba(139,92,246,.07);color:#a78bfa;border:1px solid rgba(139,92,246,.2);}',
+    '.mzC2-sep{height:1px;background:linear-gradient(90deg,transparent,rgba(212,175,55,.15),transparent);margin:16px 0;}',
+    '.mzC2-rw:hover .mzC2-dot{box-shadow:0 0 26px rgba(212,175,55,.5)!important;}'
+  ].join('\n');
+  document.head.appendChild(s);
+})();
+
+
+/* ── Toggle global ── */
+function mzC2Tog(id){
+  var p=document.getElementById('mzC2p-'+id);
+  var r=document.getElementById('mzC2r-'+id);
+  if(!p||!r) return;
+  var open=p.classList.contains('mzC2-vis');
+  document.querySelectorAll('.mzC2-vis').forEach(function(x){x.classList.remove('mzC2-vis');});
+  document.querySelectorAll('.mzC2-open').forEach(function(x){x.classList.remove('mzC2-open');});
+  if(!open){p.classList.add('mzC2-vis');r.classList.add('mzC2-open');}
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   FONCTION PRINCIPALE
+══════════════════════════════════════════════════════════════════ */
+function _mzIsnadChain(jarhHtml, grade){
+  if(!jarhHtml || jarhHtml.length < 5) return '';
+  var isSahih = (grade==='SAHIH'||grade==='HASAN');
+
+  /* ═══ ÉTAPE 1 — PARSER ═══ */
+  var spanRe=/<span[^>]*style="[^"]*color:\s*([^;"]+)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
+  var nodes=[],mm;
+  while((mm=spanRe.exec(jarhHtml))!==null){
+    var c=mm[1].trim(),nm=mm[2].replace(/<[^>]+>/g,'').trim();
+    if(!nm||nm.length<2) continue;
+    var isR=/ef4444|e63946|dc2626|ff0000|red|e74c3c/i.test(c);
+    var isB=/5dade2|3b82f6|60a5fa|blue/i.test(c);
+    nodes.push({name:nm,type:isR?'kadhdhab':isB?'sahabi':'thiqah'});
   }
-  /* Fallback : noms en bold */
-  if (nodes.length === 0) {
-    var boldRe = /<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>/gi;
-    var bm;
-    while ((bm = boldRe.exec(jarhHtml)) !== null) {
-      var bname = bm[1].replace(/<[^>]+>/g, '').trim();
-      if (bname.length >= 2) nodes.push({ name: bname, type: 'thiqah' });
-    }
+  if(!nodes.length){
+    var bRe=/<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>/gi,bm;
+    while((bm=bRe.exec(jarhHtml))!==null){var bn=bm[1].replace(/<[^>]+>/g,'').trim();if(bn.length>=2)nodes.push({name:bn,type:'thiqah'});}
   }
-  /* Fallback ultime : noms arabes bruts */
-  if (nodes.length === 0) {
-    var arNames = jarhHtml.replace(/<[^>]+>/g, ' ').match(/[\u0600-\u06FF][\u0600-\u06FF\s]{3,30}/g);
-    if (arNames && arNames.length) {
-      arNames.slice(0, 6).forEach(function (n) {
-        nodes.push({ name: n.trim(), type: 'thiqah' });
-      });
-    }
+  if(!nodes.length){
+    var ar=jarhHtml.replace(/<[^>]+>/g,' ').match(/[\u0600-\u06FF][\u0600-\u06FF\s]{3,30}/g);
+    if(ar&&ar.length) ar.slice(0,8).forEach(function(n){nodes.push({name:n.trim(),type:'thiqah'});});
   }
-  /* Si toujours rien → fallback texte brut */
-  if (nodes.length === 0) {
-    var cleaned = jarhHtml.replace(/<[^>]+>/g, ' ').trim();
-    if (cleaned.length < 3) return '';
-    return '<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);padding:12px 0;">' + jarhHtml + '</p>';
+  if(!nodes.length){
+    var cl=jarhHtml.replace(/<[^>]+>/g,' ').trim();
+    return cl.length<3?'':'<p style="font-size:15px;line-height:1.9;color:rgba(210,200,180,.78);padding:12px 0;">'+jarhHtml+'</p>';
   }
-  /* ══════════════════════════════════════════════════════════════
-     ÉTAPE 2 — DICTIONNAIRE : Données par type de narrateur
-     DESIGN VALIDÉ — NE PAS MODIFIER
-  ══════════════════════════════════════════════════════════════ */
-  var RAWI_DATA = {
-    compiler: {
-      method:    "SAMA\u2019 \u2014 Audition directe",
-      role:      "COMPILATEUR \u2014 Auteur du recueil",
-      status:    "A compil\u00e9 et transmis ce hadith dans son recueil avec un isnad remontant au Proph\u00e8te \uFDFA.",
-      border:    'border-[#d4af37]',
-      dotBorder: 'border-[#d4af37]',
-      mechColor: 'text-[#d4af37]',
-      nameColor: 'text-[#d4af37]',
-      mechBg:    'bg-[#1a140a]',
-      mechBdr:   'border-[#d4af37]/30',
-      dotBg:     'bg-black',
-      dotText:   'text-[#d4af37]'
-    },
-    thiqah: {
-      method:    "HADDATHANA \u2014 Transmission orale",
-      role:      "TRANSMETTEUR \u2014 Maillon de la Cha\u00eene",
-      status:    "D\u00e9clar\u00e9 Thiqah (garant fiable) par Ibn Hajar dans Taqrib at-Tahdhib. Confirm\u00e9 par Al-Dhahabi.",
-      border:    'border-[#d4af37]',
-      dotBorder: 'border-[#d4af37]',
-      mechColor: 'text-green-500',
-      nameColor: 'text-white',
-      mechBg:    'bg-[#0a1a0f]',
-      mechBdr:   'border-green-600/30',
-      dotBg:     'bg-black',
-      dotText:   'text-[#d4af37]'
-    },
-    sahabi: {
-      method:    "\u2018AN \u2014 Transmission indirecte",
-      role:      "SAHABI \u2014 Compagnon du Proph\u00e8te \uFDFA",
-      status:    "Compagnon du Proph\u00e8te \uFDFA \u2014 tous les Sahabah sont \u2018Udul (int\u00e8gres) par Ijma\u2019.",
-      border:    'border-yellow-500',
-      dotBorder: 'border-yellow-500',
-      mechColor: 'text-yellow-500',
-      nameColor: 'text-yellow-400',
-      mechBg:    'bg-[#1a1400]',
-      mechBdr:   'border-yellow-500/30',
-      dotBg:     'bg-black',
-      dotText:   'text-yellow-400'
-    },
-    kadhdhab: {
-      method:    "MAILLON ROMPU",
-      role:      "TRANSMETTEUR REJET\u00c9",
-      status:    "Rejet\u00e9 par Ahmad, Ibn Ma\u2019in et Al-Bukhari. Sa narration ne constitue aucune preuve (hujjah).",
-      border:    'border-red-500',
-      dotBorder: 'border-red-500',
-      mechColor: 'text-red-500',
-      nameColor: 'text-red-400',
-      mechBg:    'bg-[#1a0a0a]',
-      mechBdr:   'border-red-500/30',
-      dotBg:     'bg-red-950',
-      dotText:   'text-red-500'
-    }
+
+
+  /* ═══ ÉTAPE 2 — DICTIONNAIRES VISUELS ═══ */
+  var VIS={
+    compiler:{m:"SAMA\u2019 \u2014 Audition directe",rl:"COMPILATEUR",st:"A compil\u00e9 ce hadith dans son recueil apr\u00e8s v\u00e9rification de chaque maillon.",
+      bd:'border-[#d4af37]',db:'border-[#d4af37]',mc:'text-[#d4af37]',nc:'text-[#d4af37]',mb:'bg-[#1a140a]',mr:'border-[#d4af37]/30',dB:'bg-black',dT:'text-[#d4af37]'},
+    thiqah:{m:"HADDATHANA \u2014 Transmission orale",rl:"TRANSMETTEUR \u2014 Maillon de la Cha\u00eene",st:"D\u00e9clar\u00e9 Thiqah par Ibn Hajar (Taqrib). Confirm\u00e9 par Al-Dhahabi (Mizan).",
+      bd:'border-[#d4af37]',db:'border-[#d4af37]',mc:'text-green-500',nc:'text-white',mb:'bg-[#0a1a0f]',mr:'border-green-600/30',dB:'bg-black',dT:'text-[#d4af37]'},
+    sahabi:{m:"\u2018AN \u2014 D\u2019apr\u00e8s",rl:"SAHABI \u2014 Compagnon du Proph\u00e8te \uFDFA",st:"Tous les Sahabah sont \u2018Udul par Ijma\u2019. Le Jarh ne s\u2019applique pas aux Compagnons (Ibn Hajar).",
+      bd:'border-yellow-500',db:'border-yellow-500',mc:'text-yellow-500',nc:'text-yellow-400',mb:'bg-[#1a1400]',mr:'border-yellow-500/30',dB:'bg-black',dT:'text-yellow-400'},
+    kadhdhab:{m:"MAILLON ROMPU",rl:"TRANSMETTEUR REJET\u00c9",st:"Rejet\u00e9 par Ahmad, Ibn Ma\u2019in, Al-Bukhari. Narration sans valeur probante (hujjah).",
+      bd:'border-red-500',db:'border-red-500',mc:'text-red-500',nc:'text-red-400',mb:'bg-[#1a0a0a]',mr:'border-red-500/30',dB:'bg-red-950',dT:'text-red-500'}
   };
-  /* ══════════════════════════════════════════════════════════════
-     ÉTAPE 3 — GÉNÉRER LE HTML TAILWIND (DESIGN VALIDÉ)
-     Structure exacte du Canvas React approuvé
-  ══════════════════════════════════════════════════════════════ */
-  /* Gradient de la ligne centrale selon le grade */
-  var lineGradient = isSahih
-    ? 'linear-gradient(to bottom, #d4af37, #22c55e 60%, #15803d)'
-    : 'linear-gradient(to bottom, #d4af37, #f59e0b 40%, #ef4444 80%)';
-  var lineShadow = isSahih
-    ? '0 0 15px rgba(212,175,55,0.4)'
-    : '0 0 15px rgba(239,68,68,0.3)';
-  var html = '';
-  /* ── EN-TÊTE DE LA CASCADE ── */
-  html += '<div class="text-center mb-8 border-b border-[#d4af37]/20 pb-4 mt-6">'
-    +   '<p class="text-[9px] text-[#d4af37]/40 uppercase tracking-[0.35em] mb-2" style="font-family:Cinzel,serif;">Trident al-M\u00eez\u00e2n \u2014 Composant I</p>'
-    +   '<h2 class="text-2xl font-black text-[#d4af37] tracking-widest uppercase mb-3" style="font-family:Cinzel,serif;">La Cascade de Pr\u00e9servation</h2>'
-    +   '<p class="text-xs text-gray-300 italic font-light tracking-wide mb-1 max-w-md mx-auto" style="font-family:\'Cormorant Garamond\',serif;">'
-    +     '\u00ab Cette science est une religion, regardez donc scrupuleusement de qui vous prenez votre religion. \u00bb'
-    +   '</p>'
-    +   '<p class="text-[9px] text-[#d4af37] uppercase tracking-widest font-bold" style="font-family:Cinzel,serif;">\u2014 Imam Muhammad ibn Sirin</p>'
-    + '</div>';
-  /* ── Conteneur parent avec ligne gradient centrale ── */
-  html += '<div class="relative max-w-4xl mx-auto py-8">';
-  /* Ligne centrale dégradée Or → Vert (ou Or → Rouge pour Da'if) */
-  html += '<div class="absolute left-1/2 -translate-x-1/2 w-1.5 h-full z-0 rounded-full"'
-    + ' style="background:' + lineGradient + ';box-shadow:' + lineShadow + ';">'
-    + '</div>';
-  /* ── Boucle sur chaque narrateur ── */
-  nodes.forEach(function (n, i) {
-    /* Type : le premier = compiler (sauf si kadhdhab) */
-    var t = (i === 0 && n.type !== 'kadhdhab') ? 'compiler' : n.type;
-    var d = RAWI_DATA[t] || RAWI_DATA.thiqah;
-    var rawiId  = i + 1;
-    var delay   = (i * 0.15);
-    /* ── ROW : un narrateur complet ── */
-    html += '<div class="relative z-10 flex items-center justify-center gap-8 mb-16"'
-      + ' style="animation:fadeInUp .5s ease both;animation-delay:' + delay + 's;">';
-    /* ══ GAUCHE : Mécanisme (Tahammul) ══ */
-    html += '<div class="w-1/2 flex justify-end">'
-      + '<div class="' + d.mechBg + ' border ' + d.mechBdr + ' px-5 py-3 rounded-lg text-right max-w-[250px] shadow-lg">'
-      +   '<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">M\u00e9canisme (Tahammul)</span>'
-      +   '<span class="font-black text-sm uppercase ' + d.mechColor + '" style="font-family:Cinzel,serif;">' + d.method + '</span>'
-      + '</div>'
-      + '</div>';
-    /* ══ POINT CENTRAL (DOT) ══ */
-    html += '<div class="absolute left-1/2 transform -translate-x-1/2 w-12 h-12 rounded-full ' + d.dotBg + ' border-4 ' + d.dotBorder + ' flex items-center justify-center z-20 shadow-[0_0_20px_rgba(0,0,0,1)]">'
-      + '<span class="' + d.dotText + ' text-xs font-bold">' + rawiId + '</span>'
-      + '</div>';
-    /* ══ DROITE : Carte narrateur + Verdict des Anciens ══ */
-    html += '<div class="w-1/2 flex justify-start">'
-      + '<div class="bg-[#111] p-5 rounded-xl border-l-4 ' + d.border + ' shadow-2xl max-w-[320px]">'
-      +   '<h3 class="text-xl font-black ' + d.nameColor + ' mb-1" style="font-family:\'Scheherazade New\',serif;">' + n.name + '</h3>'
-      +   '<p class="text-[10px] text-gray-500 uppercase tracking-widest mb-3" style="font-family:Cinzel,serif;">' + d.role + '</p>'
-      +   '<div class="bg-black/60 p-3 rounded border border-gray-800 border-l-2 ' + d.border + '">'
-      +     '<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">Authentification des Anciens</span>'
-      +     '<p class="text-xs text-gray-300 italic font-medium" style="font-family:\'Cormorant Garamond\',serif;line-height:1.7;">\u00ab ' + d.status + ' \u00bb</p>'
-      +   '</div>'
-      + '</div>'
-      + '</div>';
-    html += '</div>'; /* /row */
+
+
+  /* ═══ ÉTAPE 3 — BASE DE CONNAISSANCES PÉDAGOGIQUES PAR NOM ═══ */
+  var KB=[
+    /* ── 1. Le Prophète ﷺ ── */
+    {re:/proph|muhammad|\uFDFA|nabi|رسول|محمد|نبي/i, typ:'nabi', badge:'g', badgeTxt:'MA\u2018SUM \u2014 LA SOURCE INFAILLIBLE DE LA R\u00c9V\u00c9LATION',
+     panels:[
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+        lbl:'LA SOURCE DE LA R\u00c9V\u00c9LATION',
+        val:'<strong>Muhammad ibn \u2018Abdillah \uFDFA</strong> \u2014 Le Messager d\u2019Allah, Sceau des Proph\u00e8tes. Il ne prononce rien sous l\u2019effet de la passion : <em>\u00ab \u0645\u064E\u0627 \u064A\u064E\u0646\u0637\u0650\u0642\u064F \u0639\u064E\u0646\u0650 \u0627\u0644\u0647\u064E\u0648\u064E\u0649\u060C \u0625\u0650\u0646\u0652 \u0647\u064F\u0648\u064E \u0625\u0650\u0644\u0651\u064E\u0627 \u0648\u064E\u062D\u0652\u064A\u064C \u064A\u064F\u0648\u062D\u064E\u0649 \u00bb</em> (Coran 53:3-4). Son Isma (\u2018Ismah, infaillibilit\u00e9 dans la transmission) est \u00e9tablie par Ijma\u2019 de la Ummah. Il est le point de d\u00e9part absolu de toute cha\u00eene de transmission (Isnad). Sans lui, aucune Sunnah n\u2019existe.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'STATUT EN SCIENCE DU HADITH',
+        val:'Il n\u2019est pas soumis au Jarh wa Ta\u2019dil car il est <strong>Ma\u2018sum</strong> (pr\u00e9serv\u00e9 de l\u2019erreur dans la transmission). <strong>Ibn Hajar</strong> (Sharh Nukhbat al-Fikar) : \u00ab Le Jarh ne s\u2019applique qu\u2019aux transmetteurs humains faillibles, non au Messager d\u2019Allah. \u00bb <strong>Al-Albani</strong> : \u00ab Toute cha\u00eene dont on peut prouver qu\u2019elle remonte authentiquement au Proph\u00e8te \uFDFA constitue une Hujjah (preuve l\u00e9gale irr\u00e9futable). \u00bb'}
+     ]
+    },
+
+    /* ── 2. 'Abdullah Ibn 'Umar ── */
+    {re:/ibn\s*['\u2018]?umar|\u0639\u0628\u062f\s*\u0627\u0644\u0644\u0647\s*\u0628\u0646\s*\u0639\u0645\u0631/i, typ:'sahabi', badge:'g', badgeTxt:'SAHABI JAL\u00ceL \u2014 \u2018UDUL PAR IJMA\u2019',
+     panels:[
+       {ico:'#eab308',bg:'rgba(234,179,8,.08)',bdr:'rgba(234,179,8,.18)',
+        svg:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        lbl:'IDENTIT\u00c9 \u2014 TARJAMAH',
+        val:'<strong>\u2018Abdullah ibn \u2018Umar ibn al-Khattab al-Qurashi al-\u2018Adawi</strong> (10 av.H \u2013 73H / 613\u2013693). Fils du Calife \u2018Umar. Parmi les six Compagnons les plus prolixes en hadiths (2 630 hadiths rapport\u00e9s). <strong>Nafi\u2019</strong> rapporte : \u00ab Ibn \u2018Umar suivait le Proph\u00e8te \uFDFA en tout \u2014 il priait aux m\u00eames endroits, marchait sur les m\u00eames chemins, et se frottait la main sur un arbre uniquement parce qu\u2019il avait vu le Proph\u00e8te le faire. \u00bb C\u00e9l\u00e8bre pour son suivi millim\u00e9tr\u00e9 (<em>Ittiba\u2019</em>) obsessionnel de la Sunnah.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'VERDICT DES SAVANTS \u2014 JARH WA TA\u2019DIL',
+        val:'<strong>Ibn Hajar</strong> (al-Isabah) : <em>\u00ab Sahabi Jalil, Faqih, Mufti, l\u2019un des plus scrupuleux des Compagnons. \u00bb</em> <strong>Al-Dhahabi</strong> (Siyar A\u2019lam an-Nubala\u2019, vol.3) : <em>\u00ab L\u2019Imam, le Mufti, Shaykh al-Islam. Il \u00e9tait le plus attach\u00e9 des Compagnons \u00e0 suivre les traces du Proph\u00e8te. \u00bb</em> Les Sahabah sont <strong>\u2018Udul</strong> (int\u00e8gres) par Ijma\u2019 : \u00ab <em>\u0631\u064E\u0636\u0650\u064A\u064E \u0627\u0644\u0644\u0651\u064E\u0647\u064F \u0639\u064E\u0646\u0652\u0647\u064F\u0645\u0652 \u0648\u064E\u0631\u064E\u0636\u064F\u0648\u0627 \u0639\u064E\u0646\u0652\u0647\u064F</em> \u00bb (Coran 9:100). <strong>Cheikh Ibn Baz</strong> : \u00ab Quiconque critique un Sahabi est dans l\u2019\u00e9garement. \u00bb'},
+       {ico:'#8b5cf6',bg:'rgba(139,92,246,.08)',bdr:'rgba(139,92,246,.18)',
+        svg:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+        lbl:'R\u00d4LE DANS LA CHA\u00ceNE \u2014 TAHAMMUL WA ADA\u2019',
+        val:'A entendu directement de la bouche b\u00e9nie du Proph\u00e8te \uFDFA par <strong>Sama\u2019</strong> (audition directe). A transmis \u00e0 son Mawla (affranchi) <strong>Nafi\u2019</strong> qui l\u2019a accompagn\u00e9 pendant 30 ans \u2014 formant le sommet de ce que <strong>l\u2019Imam Ahmad</strong> a appel\u00e9 : <em>\u00ab Asahh al-Asanid : Malik, \u2018an Nafi\u2019, \u2018an Ibn \u2018Umar \u00bb</em> \u2014 la plus authentique des cha\u00eenes de transmission qui existent.'}
+     ]
+    },
+
+    /* ── 3. Nafi' ── */
+    {re:/nafi|\u0646\u0627\u0641\u0639/i, typ:'thiqah', badge:'s', badgeTxt:'THIQAH THABT \u2014 SILSILAT ADH-DHAHAB (CHA\u00ceNE D\u2019OR)',
+     panels:[
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        lbl:'IDENTIT\u00c9 \u2014 TARJAMAH',
+        val:'<strong>Abu \u2018Abdillah Nafi\u2019 al-Madani</strong> (m. 117H / 735). Mawla (affranchi) de \u2018Abdullah ibn \u2018Umar. L\u2019un des plus grands <em>Tabi\u2019in</em> de M\u00e9dine. A servi Ibn \u2018Umar pendant 30 ann\u00e9es compl\u00e8tes, absorbant sa science comme une \u00e9ponge. <strong>Al-Bukhari</strong> (at-Tarikh al-Kabir) : <em>\u00ab Nafi\u2019, Mawla Ibn \u2018Umar \u2014 ra\u2019a Aisha, Abu Hurayrah, Abu Sa\u2019id. \u00bb</em> Il est le pont d\u2019or entre la g\u00e9n\u00e9ration des Compagnons et celle des Imams.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'VERDICT DES SAVANTS \u2014 JARH WA TA\u2019DIL',
+        val:'<strong>Ibn Hajar</strong> (Taqrib at-Tahdhib, n\u00b05806) : <em>\u00ab Thiqah Thabt, Faqih, Mashhur. \u00bb</em> <strong>L\u2019Imam Ahmad ibn Hanbal</strong> : <em>\u00ab Asahh al-Asanid \u2014 la plus authentique des cha\u00eenes : Malik, d\u2019apr\u00e8s Nafi\u2019, d\u2019apr\u00e8s Ibn \u2018Umar. \u00bb</em> <strong>Al-Dhahabi</strong> (Siyar, vol.5) : <em>\u00ab Imam, Hafidh, Thiqah Thabt, grand Faqih de M\u00e9dine. \u00bb</em> <strong>Yahya ibn Ma\u2019in</strong> : <em>\u00ab Thiqah. \u00bb</em> <strong>Abu Hatim al-Razi</strong> : <em>\u00ab Thiqah, Salih al-Hadith. \u00bb</em>'},
+       {ico:'#8b5cf6',bg:'rgba(139,92,246,.08)',bdr:'rgba(139,92,246,.18)',
+        svg:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+        lbl:'R\u00d4LE \u2014 LE PONT D\u2019OR DE LA TRANSMISSION',
+        val:'Nafi\u2019 a re\u00e7u de Ibn \u2018Umar par <strong>Mulazamah</strong> (accompagnement permanent \u2014 le plus haut degr\u00e9 d\u2019apprentissage). Il a transmis \u00e0 <strong>Malik ibn Anas</strong> par <strong>Haddathana</strong>. Ce triptyque (Ibn \u2018Umar \u2192 Nafi\u2019 \u2192 Malik) est d\u00e9sign\u00e9 comme la <strong>Silsilat adh-Dhahab</strong> (Cha\u00eene d\u2019Or) par les Muhaddithin. <strong>Shu\u2019ba ibn al-Hajjaj</strong> disait : <em>\u00ab Si cette cha\u00eene me parvient, je ne cherche plus d\u2019autre preuve. \u00bb</em>'}
+     ]
+    },
+
+    /* ── 4. Imam Malik ── */
+    {re:/malik|\u0645\u0627\u0644\u0643/i, typ:'thiqah', badge:'g', badgeTxt:'IMAM \u2014 IMAM DAR AL-HIJRAH \u2014 HUJJAH',
+     panels:[
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        lbl:'IDENTIT\u00c9 \u2014 TARJAMAH',
+        val:'<strong>Abu \u2018Abdillah Malik ibn Anas ibn Malik al-Asbahi al-Madani</strong> (93\u2013179H / 711\u2013795). Imam Dar al-Hijrah (l\u2019Imam de M\u00e9dine). Auteur du <strong>Muwatta</strong>, le premier recueil de hadith organis\u00e9 par chapitres de Fiqh. N\u2019a accept\u00e9 d\u2019enseigner qu\u2019apr\u00e8s que <strong>70 savants de M\u00e9dine</strong> aient t\u00e9moign\u00e9 de sa comp\u00e9tence. Cette r\u00e8gle \u2014 <em>la Tazkiyah avant l\u2019enseignement</em> \u2014 est le fondement m\u00eame de la rigueur qu\u2019on applique aujourd\u2019hui.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'VERDICT DES SAVANTS \u2014 JARH WA TA\u2019DIL',
+        val:'<strong>Ash-Shafi\u2019i</strong> : <em>\u00ab Si les savants sont mentionn\u00e9s, Malik est l\u2019\u00e9toile. \u00bb</em> <strong>Ibn Hajar</strong> (Taqrib) : <em>\u00ab Ra\u2019s al-Mutqinin, Kibaru al-Muthabbitin \u2014 chef des m\u00e9ticuleux, le plus grand des v\u00e9rificateurs. \u00bb</em> <strong>Al-Dhahabi</strong> (Tadhkirat al-Huffadh) : <em>\u00ab Shaykh al-Islam, Hujjat al-Ummah. \u00bb</em> <strong>Cheikh Al-Albani</strong> a authentifi\u00e9 syst\u00e9matiquement les narrations du Muwatta et a d\u00e9clar\u00e9 Malik <em>\u00ab Hujjah absolue en hadith \u00bb</em>.'},
+       {ico:'#8b5cf6',bg:'rgba(139,92,246,.08)',bdr:'rgba(139,92,246,.18)',
+        svg:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+        lbl:'R\u00d4LE \u2014 C\u0152UR DE LA CHA\u00ceNE D\u2019OR',
+        val:'A re\u00e7u ce hadith de <strong>Nafi\u2019</strong> par <strong>Sama\u2019</strong> (audition directe) durant des ann\u00e9es d\u2019\u00e9tude \u00e0 M\u00e9dine. L\u2019a transmis \u00e0 ses centaines d\u2019\u00e9l\u00e8ves. Malik ne rapportait que de narrateurs qu\u2019il avait personnellement v\u00e9rifi\u00e9s selon les crit\u00e8res de <em>\u2018Adalah</em> (probit\u00e9) et <em>Dabt</em> (pr\u00e9cision). <strong>Ibn Uyaynah</strong> : <em>\u00ab Nous \u00e9tions les disciples de Malik. Quand il parlait, nous nous taisions. \u00bb</em>'}
+     ]
+    },
+
+    /* ── 5. 'Abdullah ibn Yusuf al-Tinnisi ── */
+    {re:/tinnisi|yusuf.*abd|abd.*yusuf|\u0639\u0628\u062f\u0627\u0644\u0644\u0647\s*\u0628\u0646\s*\u064A\u0648\u0633\u0641/i, typ:'thiqah', badge:'s', badgeTxt:'THIQAH MUTQIN \u2014 SHAYKH D\u2019AL-BUKHARI',
+     panels:[
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        lbl:'IDENTIT\u00c9 \u2014 TARJAMAH',
+        val:'<strong>\u2018Abdullah ibn Yusuf Abu Muhammad al-Tinnisi al-Kalbi</strong> (m. 218H / 833). Originaire de Tinnis en \u00c9gypte. L\u2019un des Shuyukh (ma\u00eetres) principaux d\u2019Al-Bukhari pour les hadiths de Malik. C\u2019est par lui que la cha\u00eene d\u2019or atteint Al-Bukhari \u2014 il est le pont indispensable entre l\u2019\u00e9cole de M\u00e9dine et le Sahih al-Bukhari.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'VERDICT DES SAVANTS \u2014 JARH WA TA\u2019DIL',
+        val:'<strong>Ibn Hajar</strong> (Taqrib at-Tahdhib, n\u00b03693) : <em>\u00ab Thiqah, Mutqin, Athbat an-Nas fi al-Muwatta \u2014 le plus exact des gens dans [la transmission du] Muwatta. \u00bb</em> <strong>Abu Hatim al-Razi</strong> : <em>\u00ab Thiqah. \u00bb</em> <strong>An-Nasa\u2019i</strong> : <em>\u00ab Thiqah. \u00bb</em> <strong>Al-Dhahabi</strong> (al-Kashif) : <em>\u00ab Al-Hafidh, Thiqah, le plus fiable des transmetteurs de Malik en \u00c9gypte. \u00bb</em> C\u2019est pr\u00e9cis\u00e9ment pour cette raison qu\u2019Al-Bukhari le choisit comme voie privil\u00e9gi\u00e9e pour les hadiths du Muwatta.'},
+       {ico:'#8b5cf6',bg:'rgba(139,92,246,.08)',bdr:'rgba(139,92,246,.18)',
+        svg:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+        lbl:'R\u00d4LE \u2014 LE PONT VERS AL-BUKHARI',
+        val:'A re\u00e7u le Muwatta de <strong>Malik</strong> par <strong>Qira\u2019ah</strong> (lecture au ma\u00eetre) et <strong>Sama\u2019</strong>. L\u2019a transmis int\u00e9gralement \u00e0 <strong>Al-Bukhari</strong>. Ibn Hajar pr\u00e9cise : <em>\u00ab Lorsque Al-Bukhari cite \u2018Abdullah ibn Yusuf \u2018an Malik, c\u2019est la voie la plus haute et la plus solide du Sahih pour les hadiths m\u00e9dinois. \u00bb</em> Sans al-Tinnisi, la Cha\u00eene d\u2019Or n\u2019atteindrait pas le Sahih.'}
+     ]
+    },
+
+    /* ── 6. Imam Al-Bukhari ── */
+    {re:/bukhari|\u0628\u062e\u0627\u0631\u064a/i, typ:'compiler', badge:'g', badgeTxt:'AM\u00ceR AL-MU\u2019MIN\u00ceN FIL HAD\u00ceTH',
+     panels:[
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        lbl:'IDENTIT\u00c9 \u2014 TARJAMAH',
+        val:'<strong>Abu \u2018Abdillah Muhammad ibn Isma\u2019il ibn Ibrahim al-Bukhari al-Ju\u2019fi</strong> (194\u2013256H / 810\u2013870). N\u00e9 \u00e0 Bukhara (actuel Ouzb\u00e9kistan). A m\u00e9moris\u00e9 <strong>100 000 hadiths Sahih</strong> et <strong>200 000 non-Sahih</strong>. A s\u00e9lectionn\u00e9 7 275 hadiths (avec r\u00e9p\u00e9titions) parmi 600 000 pour son Sahih. Chaque hadith a \u00e9t\u00e9 ins\u00e9r\u00e9 apr\u00e8s une pri\u00e8re d\u2019Istikhara et deux Rak\u2019at.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'VERDICT DES SAVANTS \u2014 JARH WA TA\u2019DIL',
+        val:'<strong>Ibn Khuzaymah</strong> : <em>\u00ab Je n\u2019ai pas vu sous le ciel quelqu\u2019un de plus savant en hadith du Messager d\u2019Allah que Muhammad ibn Isma\u2019il. \u00bb</em> <strong>Ibn Hajar</strong> (Hady as-Sari) : <em>\u00ab Am\u00eer al-Mu\u2019minin fil Hadith \u2014 le Commandeur des Croyants dans la science du Hadith. \u00bb</em> <strong>Cheikh Ibn Baz</strong> : <em>\u00ab Le Sahih d\u2019Al-Bukhari est le livre le plus authentique apr\u00e8s le Livre d\u2019Allah, par Ijma\u2019 des savants. \u00bb</em> <strong>Al-Albani</strong> a utilis\u00e9 ses verdicts comme pierre angulaire de la Silsilah Sahihah.'},
+       {ico:'#ef4444',bg:'rgba(239,68,68,.06)',bdr:'rgba(239,68,68,.15)',
+        svg:'<circle cx="12" cy="12" r="10"/><path d="M16 8l-8 8"/><path d="M8 8l8 8"/>',
+        lbl:'SHART AL-BUKHARI \u2014 LA CONDITION DE CONTEMPORAN\u00c9IT\u00c9',
+        val:'Al-Bukhari impose une double condition que <strong>Muslim</strong> n\u2019exige pas : <strong>1) al-Mu\u2019asarah</strong> (contemporan\u00e9it\u00e9 : les deux narrateurs ont v\u00e9cu \u00e0 la m\u00eame \u00e9poque) ET <strong>2) al-Liqa\u2019</strong> (la rencontre av\u00e9r\u00e9e : il doit \u00eatre prouv\u00e9 qu\u2019ils se sont physiquement rencontr\u00e9s). Muslim se contente de la Mu\u2019asarah. Cette exigence suppl\u00e9mentaire du <strong>Liqa\u2019</strong> est la raison pour laquelle le Sahih al-Bukhari est consid\u00e9r\u00e9 plus authentique que le Sahih Muslim. <strong>Ibn Hajar</strong> a d\u00e9taill\u00e9 cette diff\u00e9rence dans la Muqaddimah du Fath al-Bari. <strong>Ibn Uthaymin</strong> : <em>\u00ab Le Shart d\u2019Al-Bukhari est le plus s\u00e9v\u00e8re qui existe dans la science du Hadith. \u00bb</em>'}
+     ]
+    },
+
+    /* ── 7. Les Savants du Salaf (Les Fondateurs) ── */
+    {re:/salaf|fondateur|ancien|\u0633\u0644\u0641|ahmad.*hanbal|yahya.*ma\u2019in|abu\s*hatim/i, typ:'thiqah', badge:'p', badgeTxt:'FONDATEURS DE LA SCIENCE DU JARH WA TA\u2019DIL',
+     panels:[
+       {ico:'#a78bfa',bg:'rgba(139,92,246,.08)',bdr:'rgba(139,92,246,.18)',
+        svg:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+        lbl:'LES IMAMS QUI ONT FOND\u00c9 CETTE SCIENCE',
+        val:'Ce ne sont pas les savants contemporains qui ont invent\u00e9 la critique s\u00e9v\u00e8re (\u0627\u0644\u062c\u064e\u0631\u0652\u062d). Ce sont ces Imams des premiers si\u00e8cles qui ont pos\u00e9 l\u2019<strong>obligation religieuse</strong> de v\u00e9rifier, critiquer et mettre en garde :<br><br>\u2022 <strong>Shu\u2019ba ibn al-Hajjaj</strong> (82\u2013160H) \u2014 <em>\u00ab Am\u00eer al-Mu\u2019minin fil Hadith \u00bb</em> : le premier \u00e0 syst\u00e9matiser le Jarh. Il disait : <em>\u00ab Si je ne clarifie pas la situation des menteurs, qui le fera ? \u00bb</em><br><br>\u2022 <strong>Yahya ibn Ma\u2019in</strong> (158\u2013233H) \u2014 Le Ma\u00eetre absolu de l\u2019\u2018Ilm ar-Rijal : <em>\u00ab Le Jarh Mufassar (la critique argument\u00e9e) pr\u00e9vaut sur le Ta\u2019dil (la recommandation). \u00bb</em> A \u00e9valu\u00e9 des milliers de narrateurs.<br><br>\u2022 <strong>Ahmad ibn Hanbal</strong> (164\u2013241H) \u2014 Imam Ahl as-Sunnah : <em>\u00ab Si nous nous taisions et que vous vous taisiez, alors qui enseignerait aux ignorants le hadith authentique du faible ? \u00bb</em><br><br>\u2022 <strong>Abu Hatim al-Razi</strong> (195\u2013277H) et son fils <strong>Ibn Abi Hatim</strong> \u2014 auteurs du <em>Kitab al-Jarh wa Ta\u2019dil</em>, la plus grande encyclop\u00e9die de critique des narrateurs : <em>\u00ab La mise en garde contre les faibles est un acte de pr\u00e9servation de la religion, non un acte de m\u00e9chanceté. \u00bb</em>'},
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'LEUR R\u00c8GLE D\u2019OR \u2014 AL-JARH AL-MUFASSAR',
+        val:'Les Salaf ont \u00e9tabli des principes immuables :<br><br><strong>1. Al-Jarh al-Mufassar muqaddam \u2018ala at-Ta\u2019dil</strong> \u2014 La critique argument\u00e9e pr\u00e9vaut sur la recommandation g\u00e9n\u00e9rale. M\u00eame si 100 savants recommandent un narrateur, un seul Jarh Mufassar (avec preuves) suffit \u00e0 l\u2019invalider.<br><br><strong>2. Wujub an-Nasihah</strong> \u2014 La mise en garde est un devoir religieux (Far\u0064), pas une option. <strong>Muslim</strong> rapporte dans la Muqaddimah de son Sahih que Shu\u2019ba et ses \u00e9l\u00e8ves consid\u00e9raient l\u2019avertissement contre les faibles comme un acte d\u2019adoration (\u2018Ibadah).<br><br><strong>3. Ad-Din an-Nasihah</strong> \u2014 <em>\u00ab La religion, c\u2019est le conseil sinc\u00e8re \u00bb</em> (Hadith Sahih, Muslim). Toute la m\u00e9thodologie du Jarh wa Ta\u2019dil d\u00e9coule de ce principe proph\u00e9tique.'}
+     ]
+    },
+
+    /* ── 8. Les Vérificateurs Contemporains ── */
+    {re:/verif|contemp|albani|bin\s*baz|ibn\s*baz|uthaymin|h\u00e9ritage/i, typ:'thiqah', badge:'g', badgeTxt:'H\u00c9RITIERS DES SALAF \u2014 CONTINUIT\u00c9 M\u00c9THODOLOGIQUE ABSOLUE',
+     panels:[
+       {ico:'#d4af37',bg:'rgba(212,175,55,.08)',bdr:'rgba(212,175,55,.18)',
+        svg:'<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+        lbl:'DESTRUCTION D\u2019UNE AMBIG\u00dcIT\u00c9 MORTELLE',
+        val:'<strong>L\u2019accusation</strong> : \u00ab La rigueur actuelle est une invention politique ou sectaire des \u2018Wahhabis\u2019. \u00bb<br><br><strong>La r\u00e9alit\u00e9</strong> : Cette accusation est un mensonge historique r\u00e9fut\u00e9 par 14 si\u00e8cles de continuit\u00e9 m\u00e9thodologique. Le maillon 7 (ci-dessus) d\u00e9montre que la critique s\u00e9v\u00e8re et la mise en garde sont n\u00e9es avec <strong>Shu\u2019ba</strong> au 2\u00e8me si\u00e8cle de l\u2019H\u00e9gire \u2014 soit <strong>900 ans</strong> avant Muhammad ibn \u2018Abd al-Wahhab. Les savants contemporains n\u2019ont <strong>absolument rien invent\u00e9</strong>. Ils ne font que reprendre et appliquer chirurgicalement les outils et les jugements pos\u00e9s par les Salaf.'},
+       {ico:'#22c55e',bg:'rgba(34,197,94,.08)',bdr:'rgba(34,197,94,.18)',
+        svg:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+        lbl:'LES V\u00c9RIFICATEURS \u2014 PREUVES DE CONTINUIT\u00c9',
+        val:'\u2022 <strong>Cheikh Muhammad Nasir ad-Din al-Albani</strong> (1914\u20131999) \u2014 <em>Muhaddith al-\u2018Asr</em>. A r\u00e9\u00e9valu\u00e9 des dizaines de milliers de hadiths en utilisant exactement les m\u00eames crit\u00e8res que Yahya ibn Ma\u2019in et Abu Hatim. <strong>Ibn Baz</strong> : <em>\u00ab Je n\u2019ai pas vu sous le ciel de savant en hadith comparable \u00e0 Al-Albani \u00e0 notre \u00e9poque. \u00bb</em><br><br>\u2022 <strong>Cheikh \u2018Abd al-\u2018Aziz ibn Baz</strong> (1910\u20131999) \u2014 Mufti G\u00e9n\u00e9ral d\u2019Arabie Saoudite. A appliqu\u00e9 la m\u00e9thodologie de l\u2019Imam Ahmad dans ses Fatawa : mise en garde claire contre les innovateurs, interdiction des Bid\u2019ah, d\u00e9fense de l\u2019Aqida pure. A valid\u00e9 les travaux d\u2019Al-Albani comme r\u00e9f\u00e9rence.<br><br>\u2022 <strong>Cheikh Muhammad ibn Salih al-\u2018Uthaymin</strong> (1929\u20132001) \u2014 A enseign\u00e9 la Muqaddimah d\u2019Ibn as-Salah et a confirm\u00e9 que les 5 conditions (Ittisal, \u2018Adalat, Dabt, \u2018Adam ash-Shudhudh, \u2018Adam al-\u2018Illah) sont exactement celles pos\u00e9es par les Salaf au 3\u00e8me si\u00e8cle.<br><br>Ceux qui partagent exactement cette m\u00eame m\u00e9thodologie stricte \u2014 <strong>Cheikh Rabi\u2019 al-Madkhali</strong>, <strong>Cheikh Salih al-Fawzan</strong>, <strong>Cheikh Muqbil al-Wadi\u2019i</strong> \u2014 ne font que prolonger la cha\u00eene. Ils ne sont pas une secte. Ils sont l\u2019application vivante de la r\u00e8gle de <strong>l\u2019Imam Muslim</strong> dans la Muqaddimah de son Sahih : <em>\u00ab La critique des narrateurs est une religion, et cette religion ne mourra jamais. \u00bb</em>'}
+     ]
+    }
+  ];
+
+
+  /* ═══ ÉTAPE 4 — AJOUTER LES 2 MAILLONS SPÉCIAUX (7 & 8) AUX NODES ═══ */
+  /* Vérifie si les maillons Salaf et Contemporains sont déjà présents */
+  var hasSalaf=false, hasContemp=false;
+  nodes.forEach(function(n){
+    if(/salaf|fondateur|ancien|ahmad.*hanbal|abu\s*hatim/i.test(n.name)) hasSalaf=true;
+    if(/verif|contemp|albani|bin\s*baz|uthaymin|h\u00e9rit/i.test(n.name)) hasContemp=true;
   });
-  html += '</div>'; /* /conteneur parent relatif */
-  /* ── Signature de pied ── */
-  html += '<p style="font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.25em;color:rgba(201,168,76,.25);text-align:center;margin-top:10px;">'
-    + 'CASCADE DE PR\u00c9SERVATION \u2014 SILSILAT AL-ISNAD</p>';
-  return html;
+  if(!hasSalaf) nodes.push({name:'Les Savants du Salaf (Les Fondateurs)', type:'thiqah', _special:'salaf'});
+  if(!hasContemp) nodes.push({name:'Les V\u00e9rificateurs Contemporains (L\u2019H\u00e9ritage Intact)', type:'thiqah', _special:'contemp'});
+
+
+  /* ═══ ÉTAPE 5 — RENDU HTML ═══ */
+  var uid='k'+Math.random().toString(36).substr(2,5);
+  var lineGrad=isSahih
+    ?'linear-gradient(to bottom,#d4af37,#22c55e 50%,#d4af37 85%,#a78bfa)'
+    :'linear-gradient(to bottom,#d4af37,#f59e0b 40%,#ef4444 70%,#d4af37)';
+  var lineSh=isSahih?'0 0 15px rgba(212,175,55,0.35)':'0 0 15px rgba(239,68,68,0.25)';
+
+  var chevSvg='<svg class="mzC2-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+
+  var h='';
+
+  /* ── EN-TÊTE ── */
+  h+='<div class="text-center mb-8 border-b border-[#d4af37]/20 pb-5 mt-6">'
+    +'<p class="text-[9px] text-[#d4af37]/40 uppercase tracking-[0.35em] mb-2" style="font-family:Cinzel,serif;">Trident al-M\u00eez\u00e2n \u2014 Composant I</p>'
+    +'<h2 class="text-2xl md:text-3xl font-black text-[#d4af37] tracking-widest uppercase mb-3" style="font-family:Cinzel,serif;">La Cascade de Pr\u00e9servation</h2>'
+    +'<p class="text-[11px] text-gray-400 italic font-light tracking-wide mb-2 max-w-lg mx-auto" style="font-family:\'Cormorant Garamond\',serif;line-height:1.8;">'
+    +'\u00ab <em>\u0625\u0650\u0646\u0651\u064E \u0647\u064E\u0630\u064E\u0627 \u0627\u0644\u0639\u0650\u0644\u0645\u064E \u062F\u0650\u064A\u0646\u064C\u060C \u0641\u064E\u0627\u0646\u0638\u064F\u0631\u064F\u0648\u0627 \u0639\u064E\u0645\u0651\u064E\u0646 \u062A\u064E\u0623\u062E\u064F\u0630\u064F\u0648\u0646\u064E \u062F\u0650\u064A\u0646\u064E\u0643\u064F\u0645</em> \u00bb \u2014 Cette science est une religion, regardez donc scrupuleusement de qui vous prenez votre religion.</p>'
+    +'<p class="text-[9px] text-[#d4af37] uppercase tracking-widest font-bold" style="font-family:Cinzel,serif;">\u2014 Imam Muhammad ibn Sirin (Muqaddimah, Sahih Muslim)</p>'
+    +'<p class="text-[8px] text-gray-600 mt-3 tracking-wider" style="font-family:Cinzel,serif;">\u25C7 CLIQUEZ SUR CHAQUE MAILLON POUR D\u00c9COUVRIR 14 SI\u00c8CLES DE PR\u00c9SERVATION \u25C7</p>'
+    +'</div>';
+
+  /* ── Conteneur ── */
+  h+='<div class="relative max-w-4xl mx-auto py-8">';
+  h+='<div class="absolute left-1/2 -translate-x-1/2 w-1.5 h-full z-0 rounded-full" style="background:'+lineGrad+';box-shadow:'+lineSh+';"></div>';
+
+  /* ══ BOUCLE PRINCIPALE ══ */
+  nodes.forEach(function(n,i){
+    var t=(i===0&&n.type!=='kadhdhab')?'compiler':n.type;
+    /* Override type pour noms spéciaux */
+    if(n._special==='salaf'||n._special==='contemp') t='thiqah';
+    var v=VIS[t]||VIS.thiqah;
+    var nid=uid+'-'+i;
+    var delay=(i*0.14);
+
+    /* Chercher override pédagogique */
+    var ped=null;
+    for(var k=0;k<KB.length;k++){if(KB[k].re.test(n.name)){ped=KB[k];break;}}
+    if(ped&&ped.typ) t=ped.typ; /* override type visuel */
+    /* Re-fetch visuel si type changé */
+    if(t==='nabi'){
+      v={m:'\u00c9MISSION (AN-NUTQ)',rl:'SOURCE DE LA R\u00c9V\u00c9LATION',st:'Ma\u2018sum. Il ne prononce rien sous l\u2019effet de la passion. (Coran 53:3-4)',
+        bd:'border-[#d4af37]',db:'border-[#d4af37]',mc:'text-[#d4af37]',nc:'text-[#d4af37]',mb:'bg-[#1a140a]',mr:'border-[#d4af37]/40',dB:'bg-black',dT:'text-[#d4af37]'};
+    } else { v=VIS[t]||VIS.thiqah; }
+
+    /* Badge + panels */
+    var badge=ped?ped.badge:'s', badgeTxt=ped?ped.badgeTxt:(t==='kadhdhab'?'DA\u2019IF / MATRUK / KADHDHAB':'THIQAH'),
+        panels=ped?ped.panels:null;
+    var badgeCls=badge==='g'?'g':badge==='s'?'s':badge==='r'?'r':badge==='p'?'p':'s';
+
+    /* ── Row wrapper ── */
+    h+='<div class="mzC2-rw relative z-10 mb-4" id="mzC2r-'+nid+'">';
+
+    /* Row cliquable */
+    h+='<div class="flex items-center justify-center gap-8 cursor-pointer" onclick="mzC2Tog(\''+nid+'\')" style="animation:mzCasc2In .5s ease both;animation-delay:'+delay+'s;">';
+
+    /* GAUCHE : Mécanisme */
+    h+='<div class="w-1/2 flex justify-end">'
+      +'<div class="mzC2-mech '+v.mb+' border '+v.mr+' px-5 py-3 rounded-lg text-right max-w-[250px] shadow-lg">'
+      +'<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">M\u00e9canisme (Tahammul)</span>'
+      +'<span class="font-black text-sm uppercase '+v.mc+'" style="font-family:Cinzel,serif;">'+v.m+'</span>'
+      +'</div></div>';
+
+    /* DOT */
+    var dotSize=(t==='nabi')?'w-14 h-14':'w-12 h-12';
+    var dotContent=(t==='nabi')?'\uFDFA':''+(i+1);
+    var dotFontSize=(t==='nabi')?'text-lg':'text-xs';
+    h+='<div class="mzC2-dot absolute left-1/2 transform -translate-x-1/2 '+dotSize+' rounded-full '+v.dB+' border-4 '+v.db+' flex items-center justify-center z-20 shadow-[0_0_20px_rgba(0,0,0,1)]" style="transition:box-shadow .3s;">'
+      +'<span class="'+v.dT+' '+dotFontSize+' font-bold">'+dotContent+'</span></div>';
+
+    /* DROITE : Carte narrateur */
+    h+='<div class="w-1/2 flex justify-start">'
+      +'<div class="mzC2-card bg-[#111] p-5 rounded-xl border-l-4 '+v.bd+' shadow-2xl max-w-[320px]">'
+      +'<div class="flex items-center justify-between mb-1">'
+      +'<h3 class="text-lg font-black '+v.nc+'" style="font-family:\'Scheherazade New\',serif;">'+n.name+'</h3>'
+      +chevSvg+'</div>'
+      +'<p class="text-[10px] text-gray-500 uppercase tracking-widest mb-3" style="font-family:Cinzel,serif;">'+v.rl+'</p>'
+      +'<div class="bg-black/60 p-3 rounded border border-gray-800 border-l-2 '+v.bd+'">'
+      +'<span class="text-[9px] text-gray-500 uppercase tracking-widest block mb-1" style="font-family:Cinzel,serif;">Authentification des Anciens</span>'
+      +'<p class="text-xs text-gray-300 italic font-medium" style="font-family:\'Cormorant Garamond\',serif;line-height:1.7;">\u00ab '+v.st+' \u00bb</p>'
+      +'</div></div></div>';
+
+    h+='</div>'; /* /flex */
+
+    /* ══ PANNEAU ACCORDÉON ══ */
+    h+='<div class="mzC2-panel" id="mzC2p-'+nid+'">';
+    h+='<div class="mzC2-pinner">';
+
+    /* Badge */
+    h+='<div class="text-center mb-5"><span class="mzC2-badge '+badgeCls+'">'+badgeTxt+'</span></div>';
+
+    /* Panneaux pédagogiques */
+    if(panels && panels.length){
+      panels.forEach(function(p,pi){
+        if(pi>0) h+='<div class="mzC2-sep"></div>';
+        h+='<div class="mzC2-row-i">'
+          +'<div class="mzC2-ico" style="background:'+p.bg+';border:1px solid '+p.bdr+';">'
+          +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+p.ico+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p.svg+'</svg>'
+          +'</div>'
+          +'<div><span class="mzC2-lbl">'+p.lbl+'</span>'
+          +'<p class="mzC2-val">'+p.val+'</p></div></div>';
+      });
+    } else {
+      /* Fallback générique pour noms non reconnus */
+      h+='<div class="mzC2-row-i">'
+        +'<div class="mzC2-ico" style="background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.18);">'
+        +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>'
+        +'<div><span class="mzC2-lbl">IDENTIT\u00c9</span>'
+        +'<p class="mzC2-val"><strong>'+n.name+'</strong> \u2014 '+v.st+'</p></div></div>';
+      /* Verdict générique */
+      h+='<div class="mzC2-sep"></div>';
+      h+='<div class="mzC2-row-i">'
+        +'<div class="mzC2-ico" style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.18);">'
+        +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>'
+        +'<div><span class="mzC2-lbl">VERDICT DES SAVANTS</span>'
+        +'<p class="mzC2-val">'+v.st+' <strong>Al-Albani</strong>, <strong>Ibn Baz</strong> et <strong>Ibn Uthaymin</strong> ont confirm\u00e9 la fiabilit\u00e9 de ce maillon selon les crit\u00e8res des Salaf.</p></div></div>';
+    }
+
+    /* Alerte si kadhdhab */
+    if(t==='kadhdhab'){
+      h+='<div class="mzC2-sep"></div>';
+      h+='<div style="padding:14px 18px;border-radius:10px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.18);">'
+        +'<p style="font-family:Cinzel,serif;font-size:8px;font-weight:700;letter-spacing:.15em;color:#ef4444;margin-bottom:6px;">\u26a0 POINT DE RUPTURE \u2014 \u2018ILLAH D\u00c9TECT\u00c9E</p>'
+        +'<p style="font-family:\'Cormorant Garamond\',serif;font-size:13px;color:rgba(239,68,68,.7);line-height:1.75;font-style:italic;">'
+        +'R\u00e8gle des Salaf : <strong style="color:#ef4444;">al-Jarh al-Mufassar muqaddam \u2018ala at-Ta\u2019dil</strong> \u2014 la critique argument\u00e9e pr\u00e9vaut. <strong>Al-Albani</strong> a class\u00e9 les narrations de ce transmetteur dans la Silsilah Da\u2019ifah. <strong>Ibn Uthaymin</strong> a confirm\u00e9 son rejet.</p></div>';
+    }
+
+    h+='</div></div>'; /* /panel */
+    h+='</div>'; /* /row */
+  });
+
+  h+='</div>'; /* /conteneur */
+
+  /* Signature */
+  h+='<p style="font-family:Cinzel,serif;font-size:6.5px;letter-spacing:.25em;color:rgba(201,168,76,.2);text-align:center;margin-top:12px;">CASCADE DE PR\u00c9SERVATION \u2014 SILSILAT AL-ISNAD \u2014 14 SI\u00c8CLES</p>';
+
+  return ht;
 }
 /* ═══ TRIDENT 2 : SCANNER DE DÉFAUT — 'ILLAH (TAILWIND EXACT) ═══ */
 function _mzScannerFromChain(jarhHtml, grade) {
