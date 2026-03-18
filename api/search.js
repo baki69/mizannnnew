@@ -555,7 +555,7 @@ function parseHadiths(html) {
   while ((m = RE_INFO.exec(html)) !== null) infos.push(m[1]);
   console.log("MATNS_COUNT:", matns.length, "| INFOS_COUNT:", infos.length);
 
-  const limit = Math.min(matns.length, 2);
+  const limit = Math.min(matns.length, 1);
   for (let i = 0; i < limit; i++) {
     const inf    = infos[i] || "";
     const grade  = extractInfoValue(inf, "خلاصة حكم المحدث");
