@@ -1,6 +1,0 @@
-{
-  "functions": {
-    "api/search.js": { "maxDuration": 30 },
-    "api/dorar.js":  { "maxDuration": 30 }
-  }
-}
