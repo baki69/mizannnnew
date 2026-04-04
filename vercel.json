@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "api/rawi.py": {
+      "runtime": "python3.12",
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/rawi.py" },
+    { "source": "/((?!_next|favicon\\.ico|.*\\.(js|css|png|jpg|svg|ico|woff2?|ttf)).*)", "destination": "/index.html" }
+  ]
+}
