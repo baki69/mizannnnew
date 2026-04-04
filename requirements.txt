@@ -1,0 +1,8 @@
+# Scraping
+httpx[http2]
+lxml
+
+# API
+fastapi
+uvicorn[standard]
+python-multipart
