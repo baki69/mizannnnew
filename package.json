@@ -1,8 +1,0 @@
-{
-  "name": "mizan",
-  "version": "1.0.0",
-  "engines": { "node": "20.x" },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.55.0"
-  }
-}
