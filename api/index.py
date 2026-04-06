@@ -1,24 +1,30 @@
 """
 api/index.py - MIZAN v22.9
-Traduction hybride : Google Translate async (httpx) + Glossaire islamique l\u00e9gif\u00e9r\u00e9
-Verdicts Hadith prot\u00e9g\u00e9s, scraping blind\u00e9, flux SSE complet avec debug et french_text
+Traduction hybride : Google Translate async (httpx) + Glossaire islamique légifèré
+Verdicts Hadith protégés, scraping blindé, flux SSE complet avec debug et french_text
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import os
 import re
 import unicodedata
 from typing import Any, AsyncGenerator
 
 import httpx
+from anthropic import AsyncAnthropic
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from lxml import html as lx
 
 log = logging.getLogger("mizan.rawi")
+logging.basicConfig(level=logging.INFO)
 
 # =====================================================================
-# CONSTANTES R\u00c9SEAU
+# CONSTANTES RÉSEAU
 # =====================================================================
 
 _BASE     = "https://dorar.net"
@@ -36,9 +42,9 @@ _HEADERS = {
     "Referer":         _BASE,
 }
 
-_TIMEOUT   = httpx.Timeout(25.0, connect=10.0)
-_GT_TIMEOUT = httpx.Timeout(8.0, connect=5.0)
-_MAX_RETRY = 3
+_TIMEOUT    = httpx.Timeout(25.0, connect=10.0)
+_GT_TIMEOUT = httpx.Timeout(8.0,  connect=5.0)
+_MAX_RETRY  = 3
 
 CORS_HEADERS: dict[str, str] = {
     "Access-Control-Allow-Origin":  "*",
@@ -47,317 +53,462 @@ CORS_HEADERS: dict[str, str] = {
 }
 
 # =====================================================================
-# GLOSSAIRES ISLAMIQUES L\u00c9GIF\u00c9R\u00c9S
+# GLOSSAIRES ISLAMIQUES LÉGIFÈRÉS
 # =====================================================================
 
-# \u2500\u2500 Jugements du Hadith (Hukm) \u2014 protection absolue, priorit\u00e9 maximale \u2500\u2500
-# Ces termes ne doivent JAMAIS \u00eatre alt\u00e9r\u00e9s par une traduction profane.
 _HUKM_AR_FR: dict[str, str] = {
-    "\u0635\u062d\u064a\u062d":           "Authentique (Sah\u00eeh)",
-    "\u0635\u062d\u064a\u062d \u0644\u063a\u064a\u0631\u0647":     "Authentique par ses t\u00e9moins (Sah\u00eeh li-ghayrih)",
-    "\u062d\u0633\u0646":            "Bon (Hasan)",
-    "\u062d\u0633\u0646 \u0644\u063a\u064a\u0631\u0647":      "Bon par ses t\u00e9moins (Hasan li-ghayrih)",
-    "\u062d\u0633\u0646 \u0635\u062d\u064a\u062d":       "Bon et Authentique (Hasan Sah\u00eeh)",
-    "\u0636\u0639\u064a\u0641":           "Faible (Da'\u00eef)",
-    "\u0636\u0639\u064a\u0641 \u062c\u062f\u0627\u064b":      "Tr\u00e8s faible (Da'\u00eef Jiddan)",
-    "\u0636\u0639\u064a\u0641 \u062c\u062f\u0627":       "Tr\u00e8s faible (Da'\u00eef Jiddan)",
-    "\u0645\u0648\u0636\u0648\u0639":          "Invent\u00e9 (Mawd\u00fb')",
-    "\u0645\u0646\u0643\u0631":           "R\u00e9pr\u00e9hensible (Munkar)",
-    "\u0634\u0627\u0630":            "Marginal (Sh\u00e2dh)",
-    "\u0645\u0639\u0644\u0648\u0644":          "D\u00e9fectueux (Ma'l\u00fbl)",
-    "\u0645\u0631\u0633\u0644":           "Interrompu apr\u00e8s le Successeur (Mursal)",
-    "\u0645\u0646\u0642\u0637\u0639":          "Interrompu (Munqati')",
-    "\u0645\u0639\u0636\u0644":           "Doublement interrompu (Mu'dal)",
-    "\u0645\u062f\u0644\u0633":           "Avec dissimulation (Mudallis)",
-    "\u0645\u0636\u0637\u0631\u0628":          "Confus (Mudtarib)",
-    "\u0645\u0642\u0644\u0648\u0628":          "Invers\u00e9 (Maql\u00fbb)",
-    "\u0645\u062f\u0631\u062c":           "Interpol\u00e9 (Mudraj)",
-    "\u0645\u062a\u0648\u0627\u062a\u0631":         "Massif et ininterrompu (Mutaw\u00e2tir)",
-    "\u0622\u062d\u0627\u062f":           "Rapport\u00e9 par peu (\u00c2h\u00e2d)",
-    "\u0645\u0634\u0647\u0648\u0631":          "Connu (Mashh\u00fbr)",
-    "\u0639\u0632\u064a\u0632":           "Rare (Az\u00eez)",
-    "\u063a\u0631\u064a\u0628":           "\u00c9trange (Ghar\u00eeb)",
-    "\u0625\u0633\u0646\u0627\u062f\u0647 \u0635\u062d\u064a\u062d":    "Cha\u00eene authentique (Isn\u00e2duh Sah\u00eeh)",
-    "\u0625\u0633\u0646\u0627\u062f\u0647 \u062d\u0633\u0646":     "Cha\u00eene bonne (Isn\u00e2duh Hasan)",
-    "\u0625\u0633\u0646\u0627\u062f\u0647 \u0636\u0639\u064a\u0641":    "Cha\u00eene faible (Isn\u00e2duh Da'\u00eef)",
-    "\u0631\u062c\u0627\u0644\u0647 \u062b\u0642\u0627\u062a":     "Ses transmetteurs sont fiables (Rij\u00e2luh Thiq\u00e2t)",
-    "\u0644\u0627 \u0623\u0635\u0644 \u0644\u0647":      "Sans fondement (L\u00e2 Asla Lah)",
-    "\u0628\u0627\u0637\u0644":           "Nul et non avenu (B\u00e2til)",
-    "\u0645\u0643\u0630\u0648\u0628":          "Mensonger (Makdh\u00fbb)",
+    "صحيح":                  "Authentique (Sahîh)",
+    "صحيح لغيره":            "Authentique par ses témoins (Sahîh li-ghayrih)",
+    "حسن":                   "Bon (Hasan)",
+    "حسن لغيره":             "Bon par ses témoins (Hasan li-ghayrih)",
+    "حسن صحيح":              "Bon et Authentique (Hasan Sahîh)",
+    "ضعيف":                  "Faible (Da'îf)",
+    "ضعيف جداً":             "Très faible (Da'îf Jiddan)",
+    "ضعيف جدا":              "Très faible (Da'îf Jiddan)",
+    "موضوع":                 "Inventé (Mawdû')",
+    "منكر":                  "Répréhensible (Munkar)",
+    "شاذ":                   "Marginal (Shâdh)",
+    "معلول":                 "Défectueux (Ma'lûl)",
+    "مرسل":                  "Interrompu après le Successeur (Mursal)",
+    "منقطع":                 "Interrompu (Munqati')",
+    "معضل":                  "Doublement interrompu (Mu'dal)",
+    "مدلس":                  "Avec dissimulation (Mudallis)",
+    "مضطرب":                 "Confus (Mudtarib)",
+    "مقلوب":                 "Inversé (Maqlûb)",
+    "مدرج":                  "Interpolé (Mudraj)",
+    "متواتر":                "Massif et ininterrompu (Mutawâtir)",
+    "آحاد":                  "Rapporté par peu (Âhâd)",
+    "مشهور":                 "Connu (Mashhûr)",
+    "عزيز":                  "Rare (Azîz)",
+    "غريب":                  "Étrange (Gharîb)",
+    "إسناده صحيح":           "Chaîne authentique (Isnâduh Sahîh)",
+    "إسناده حسن":            "Chaîne bonne (Isnâduh Hasan)",
+    "إسناده ضعيف":           "Chaîne faible (Isnâduh Da'îf)",
+    "رجاله ثقات":            "Ses transmetteurs sont fiables (Rijâluh Thiqât)",
+    "لا أصل له":             "Sans fondement (Lâ Asla Lah)",
+    "باطل":                  "Nul et non avenu (Bâtil)",
+    "مكذوب":                 "Mensonger (Makdhûb)",
 }
 
-# \u2500\u2500 Glossaire AR \u2192 FR (terminologie islamique g\u00e9n\u00e9rale) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 _GLOSSAIRE_AR_FR: dict[str, str] = {
-    # Jugements \u2014 inclus en priorit\u00e9 (repris de _HUKM_AR_FR pour le patch global)
     **_HUKM_AR_FR,
-    # Piliers & pratiques
-    "\u0635\u0644\u0627\u0629":            "Sal\u00e2t (pri\u00e8re)",
-    "\u0627\u0644\u0635\u0644\u0627\u0629":          "la Sal\u00e2t (pri\u00e8re)",
-    "\u0632\u0643\u0627\u0629":            "Zak\u00e2t",
-    "\u0627\u0644\u0632\u0643\u0627\u0629":          "la Zak\u00e2t",
-    "\u0635\u0648\u0645":             "Sawm (je\u00fbne)",
-    "\u0631\u0645\u0636\u0627\u0646":           "Ramad\u00e2n",
-    "\u062d\u062c":              "Hajj",
-    "\u0639\u0645\u0631\u0629":            "Umrah",
-    # Croyance & m\u00e9thode
-    "\u062a\u0648\u062d\u064a\u062f":           "Tawh\u00eed (monoth\u00e9isme)",
-    "\u0625\u064a\u0645\u0627\u0646":           "\u00cem\u00e2n (foi)",
-    "\u0639\u0642\u064a\u062f\u0629":           "Aq\u00eedah (croyance)",
-    "\u0645\u0646\u0647\u062c":            "Manhaj (m\u00e9thode)",
-    "\u0633\u0646\u0629":             "Sunnah",
-    "\u0627\u0644\u0633\u0646\u0629":           "la Sunnah",
-    "\u062d\u062f\u064a\u062b":            "Had\u00eeth",
-    "\u0627\u0644\u062d\u062f\u064a\u062b":          "le Had\u00eeth",
-    "\u0634\u0631\u064a\u0639\u0629":           "Shar\u00ee'ah",
-    "\u0641\u0642\u0647":             "Fiqh (jurisprudence islamique)",
-    "\u0641\u062a\u0648\u0649":            "Fatw\u00e2",
-    "\u0625\u062c\u0645\u0627\u0639":           "Ijm\u00e2' (consensus)",
-    "\u0642\u064a\u0627\u0633":            "Qiy\u00e2s (analogie)",
-    "\u0627\u062c\u062a\u0647\u0627\u062f":          "Ijtih\u00e2d",
-    "\u062a\u0641\u0633\u064a\u0631":           "Tafs\u00eer (ex\u00e9g\u00e8se coranique)",
-    # Sciences du Hadith
-    "\u0625\u0633\u0646\u0627\u062f":           "Isn\u00e2d (cha\u00eene de transmission)",
-    "\u0633\u0646\u062f":             "Sanad (cha\u00eene)",
-    "\u0645\u062a\u0646":             "Matn (texte du had\u00eeth)",
-    "\u0631\u062c\u0627\u0644":            "Rij\u00e2l (transmetteurs)",
-    "\u062c\u0631\u062d \u0648\u062a\u0639\u062f\u064a\u0644":      "Jarh wa Ta'd\u00eel (critique des transmetteurs)",
-    "\u062b\u0642\u0629":             "Thiqah (fiable)",
-    "\u0636\u0639\u064a\u0641 \u0627\u0644\u062d\u0641\u0638":      "Faible de m\u00e9moire (Da'\u00eef al-Hifz)",
-    "\u0645\u062c\u0647\u0648\u0644":           "Inconnu (Majh\u00fbl)",
-    "\u0645\u062a\u0631\u0648\u0643":           "Abandonn\u00e9 (Matr\u00fbk)",
-    "\u0643\u0630\u0627\u0628":            "Menteur (Kadhdh\u00e2b)",
-    "\u0637\u0628\u0642\u0629":            "Tabaqah (g\u00e9n\u00e9ration)",
-    "\u0635\u062d\u0627\u0628\u064a":           "Sah\u00e2b\u00ee (Compagnon)",
-    "\u0635\u062d\u0627\u0628\u0629":           "Sah\u00e2bah (Compagnons)",
-    "\u062a\u0627\u0628\u0639\u064a":           "T\u00e2bi'\u00ee (Successeur)",
-    "\u062a\u0627\u0628\u0639\u0648\u0646":          "T\u00e2bi'\u00fbn (Successeurs)",
-    "\u062a\u0628\u0639 \u0627\u0644\u062a\u0627\u0628\u0639\u064a\u0646":    "Atb\u00e2' al-T\u00e2bi'\u00een",
-    # \u00c9thique & vertus
-    "\u0635\u0628\u0631":             "Sabr (patience)",
-    "\u0634\u0643\u0631":             "Shukr (gratitude)",
-    "\u062a\u0642\u0648\u0649":            "Taqw\u00e2 (pi\u00e9t\u00e9)",
-    "\u0625\u062e\u0644\u0627\u0635":           "Ikhl\u00e2s (sinc\u00e9rit\u00e9)",
-    "\u062a\u0648\u0628\u0629":            "Tawbah (repentir)",
-    "\u0631\u062d\u0645\u0629":            "Rahmah (mis\u00e9ricorde)",
-    "\u0645\u063a\u0641\u0631\u0629":           "Maghfirah (pardon divin)",
-    "\u0639\u062f\u0644":             "Adl (justice)",
-    "\u0639\u0644\u0645":             "Ilm (connaissance religieuse)",
-    "\u0632\u0647\u062f":             "Zuhd (asc\u00e8se)",
-    "\u0648\u0631\u0639":             "Wara' (scrupule religieux)",
-    # Eschatologie
-    "\u062c\u0646\u0629":             "Jannah (paradis)",
-    "\u0627\u0644\u062c\u0646\u0629":           "la Jannah (paradis)",
-    "\u0646\u0627\u0631":             "N\u00e2r (feu de l'enfer)",
-    "\u0627\u0644\u0646\u0627\u0631":           "le N\u00e2r (feu de l'enfer)",
-    "\u062c\u0647\u0646\u0645":            "Jahannam (g\u00e9henne)",
-    "\u064a\u0648\u0645 \u0627\u0644\u0642\u064a\u0627\u0645\u0629":     "Yawm al-Qiy\u00e2mah (Jour du Jugement)",
-    "\u0627\u0644\u0622\u062e\u0631\u0629":          "al-\u00c2khirah (l'au-del\u00e0)",
-    "\u0628\u0639\u062b":             "Ba'th (r\u00e9surrection)",
-    "\u062d\u0633\u0627\u0628":            "His\u00e2b (jugement des actes)",
-    "\u0645\u064a\u0632\u0627\u0646":           "M\u00eez\u00e2n (balance des actes)",
-    # Figures & savants
-    "\u0646\u0628\u064a":             "Nab\u00ee (proph\u00e8te)",
-    "\u0631\u0633\u0648\u0644":            "Ras\u00fbl (messager)",
-    "\u0639\u0627\u0644\u0645":            "\u00c2lim (savant islamique)",
-    "\u0639\u0644\u0645\u0627\u0621":           "Ulam\u00e2 (savants islamiques)",
-    "\u0625\u0645\u0627\u0645":            "Im\u00e2m",
-    "\u062e\u0644\u064a\u0641\u0629":           "Khal\u00eefah (calife)",
-    "\u0627\u0644\u0645\u062d\u062f\u062b":          "le Muhaddith (sp\u00e9cialiste du Had\u00eeth)",
-    "\u0645\u062d\u062f\u062b":            "Muhaddith (sp\u00e9cialiste du Had\u00eeth)",
-    "\u0627\u0644\u0641\u0642\u064a\u0647":          "le Faq\u00eeh (juriste islamique)",
-    "\u0627\u0644\u0645\u0641\u0633\u0631":          "le Mufassir (ex\u00e9g\u00e8te)",
-    # Allah & divin
-    "\u0627\u0644\u0644\u0647":            "Allah",
-    "\u0631\u0628":              "Rabb (Seigneur)",
-    "\u062e\u0627\u0644\u0642":            "Kh\u00e2liq (Cr\u00e9ateur)",
-    "\u0627\u0644\u0631\u062d\u0645\u0646":          "ar-Rahm\u00e2n (le Tout-Mis\u00e9ricordieux)",
-    "\u0627\u0644\u0631\u062d\u064a\u0645":          "ar-Rah\u00eem (le Tr\u00e8s-Mis\u00e9ricordieux)",
-    # Rituels & textes
-    "\u0648\u0636\u0648\u0621":            "Wud\u00fb (ablutions)",
-    "\u0633\u062c\u0648\u062f":            "Suj\u00fbd (prosternation)",
-    "\u0623\u0630\u0627\u0646":            "Adh\u00e2n (appel \u00e0 la pri\u00e8re)",
-    "\u0630\u0643\u0631":             "Dhikr (rappel d'Allah)",
-    "\u062f\u0639\u0627\u0621":            "Du'\u00e2 (supplication)",
-    "\u0633\u0648\u0631\u0629":            "S\u00fbrah",
-    "\u0622\u064a\u0629":             "\u00c2"""
-api/index.py - MIZAN v22.9
-Traduction hybride : Google Translate async (httpx) + Glossaire islamique l\u00e9gif\u00e9r\u00e9
-Verdicts Hadith prot\u00e9g\u00e9s, scraping blind\u00e9, flux SSE complet avec debug et french_text
-"""
-from __future__ import annotations
-
-import asyncio
-import json
-import logging
-import re
-import unicodedata
-from typing import Any, AsyncGenerator
-
-import httpx
-from lxml import html as lx
-
-log = logging.getLogger("mizan.rawi")
-
-# =====================================================================
-# CONSTANTES R\u00c9SEAU
-# =====================================================================
-
-_BASE     = "https://dorar.net"
-_RIJAL    = f"{_BASE}/rijal"
-_SEARCH_R = f"{_RIJAL}/search"
-_HADITH_S = f"{_BASE}/hadith/search"
-
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept":          "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "ar,fr;q=0.9,en;q=0.8",
-    "Referer":         _BASE,
-}
-
-_TIMEOUT   = httpx.Timeout(25.0, connect=10.0)
-_GT_TIMEOUT = httpx.Timeout(8.0, connect=5.0)
-_MAX_RETRY = 3
-
-CORS_HEADERS: dict[str, str] = {
-    "Access-Control-Allow-Origin":  "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Accept, Content-Type, Cache-Control",
+    "صلاة":     "Salât (prière)",
+    "الصلاة":   "la Salât (prière)",
+    "زكاة":     "Zakât",
+    "الزكاة":   "la Zakât",
+    "صوم":      "Sawm (jeûne)",
+    "رمضان":    "Ramadân",
+    "حج":       "Hajj",
+    "عمرة":     "Umrah",
+    "توحيد":    "Tawhîd (monothéisme)",
+    "إيمان":    "Îmân (foi)",
+    "عقيدة":    "Aqîdah (croyance)",
+    "منهج":     "Manhaj (méthode)",
+    "سنة":      "Sunnah",
+    "السنة":    "la Sunnah",
+    "حديث":     "Hadîth",
+    "الحديث":   "le Hadîth",
+    "شريعة":    "Sharî'ah",
+    "فقه":      "Fiqh (jurisprudence islamique)",
+    "فتوى":     "Fatwâ",
+    "إجماع":    "Ijmâ' (consensus)",
+    "قياس":     "Qiyâs (analogie)",
+    "اجتهاد":   "Ijtihâd",
+    "تفسير":    "Tafsîr (exégèse coranique)",
+    "إسناد":    "Isnâd (chaîne de transmission)",
+    "سند":      "Sanad (chaîne)",
+    "متن":      "Matn (texte du hadîth)",
+    "رجال":     "Rijâl (transmetteurs)",
+    "جرح وتعديل": "Jarh wa Ta'dîl (critique des transmetteurs)",
+    "ثقة":      "Thiqah (fiable)",
+    "مجهول":    "Inconnu (Majhûl)",
+    "متروك":    "Abandonné (Matrûk)",
+    "كذاب":     "Menteur (Kaddhâb)",
+    "طبقة":     "Tabaqah (génération)",
+    "صحابي":    "Sahâbî (Compagnon)",
+    "صحابة":    "Sahâbah (Compagnons)",
+    "تابعي":    "Tâbi'î (Successeur)",
+    "تابعون":   "Tâbi'ûn (Successeurs)",
+    "جنة":      "Jannah (paradis)",
+    "الجنة":    "la Jannah (paradis)",
+    "نار":      "Nâr (feu de l'enfer)",
+    "النار":    "le Nâr (feu de l'enfer)",
+    "جهنم":     "Jahannam (géhenne)",
+    "الآخرة":   "al-Âkhirah (l'au-delà)",
+    "الله":     "Allah",
+    "رب":       "Rabb (Seigneur)",
+    "وضوء":     "Wudû (ablutions)",
+    "سجود":     "Sujûd (prosternation)",
+    "أذان":     "Adhân (appel à la prière)",
+    "ذكر":      "Dhikr (rappel d'Allah)",
+    "دعاء":     "Du'â (supplication)",
 }
 
 # =====================================================================
-# GLOSSAIRES ISLAMIQUES L\u00c9GIF\u00c9R\u00c9S
+# FASTAPI APP
 # =====================================================================
 
-# \u2500\u2500 Jugements du Hadith (Hukm) \u2014 protection absolue, priorit\u00e9 maximale \u2500\u2500
-# Ces termes ne doivent JAMAIS \u00eatre alt\u00e9r\u00e9s par une traduction profane.
-_HUKM_AR_FR: dict[str, str] = {
-    "\u0635\u062d\u064a\u062d":           "Authentique (Sah\u00eeh)",
-    "\u0635\u062d\u064a\u062d \u0644\u063a\u064a\u0631\u0647":     "Authentique par ses t\u00e9moins (Sah\u00eeh li-ghayrih)",
-    "\u062d\u0633\u0646":            "Bon (Hasan)",
-    "\u062d\u0633\u0646 \u0644\u063a\u064a\u0631\u0647":      "Bon par ses t\u00e9moins (Hasan li-ghayrih)",
-    "\u062d\u0633\u0646 \u0635\u062d\u064a\u062d":       "Bon et Authentique (Hasan Sah\u00eeh)",
-    "\u0636\u0639\u064a\u0641":           "Faible (Da'\u00eef)",
-    "\u0636\u0639\u064a\u0641 \u062c\u062f\u0627\u064b":      "Tr\u00e8s faible (Da'\u00eef Jiddan)",
-    "\u0636\u0639\u064a\u0641 \u062c\u062f\u0627":       "Tr\u00e8s faible (Da'\u00eef Jiddan)",
-    "\u0645\u0648\u0636\u0648\u0639":          "Invent\u00e9 (Mawd\u00fb')",
-    "\u0645\u0646\u0643\u0631":           "R\u00e9pr\u00e9hensible (Munkar)",
-    "\u0634\u0627\u0630":            "Marginal (Sh\u00e2dh)",
-    "\u0645\u0639\u0644\u0648\u0644":          "D\u00e9fectueux (Ma'l\u00fbl)",
-    "\u0645\u0631\u0633\u0644":           "Interrompu apr\u00e8s le Successeur (Mursal)",
-    "\u0645\u0646\u0642\u0637\u0639":          "Interrompu (Munqati')",
-    "\u0645\u0639\u0636\u0644":           "Doublement interrompu (Mu'dal)",
-    "\u0645\u062f\u0644\u0633":           "Avec dissimulation (Mudallis)",
-    "\u0645\u0636\u0637\u0631\u0628":          "Confus (Mudtarib)",
-    "\u0645\u0642\u0644\u0648\u0628":          "Invers\u00e9 (Maql\u00fbb)",
-    "\u0645\u062f\u0631\u062c":           "Interpol\u00e9 (Mudraj)",
-    "\u0645\u062a\u0648\u0627\u062a\u0631":         "Massif et ininterrompu (Mutaw\u00e2tir)",
-    "\u0622\u062d\u0627\u062f":           "Rapport\u00e9 par peu (\u00c2h\u00e2d)",
-    "\u0645\u0634\u0647\u0648\u0631":          "Connu (Mashh\u00fbr)",
-    "\u0639\u0632\u064a\u0632":           "Rare (Az\u00eez)",
-    "\u063a\u0631\u064a\u0628":           "\u00c9trange (Ghar\u00eeb)",
-    "\u0625\u0633\u0646\u0627\u062f\u0647 \u0635\u062d\u064a\u062d":    "Cha\u00eene authentique (Isn\u00e2duh Sah\u00eeh)",
-    "\u0625\u0633\u0646\u0627\u062f\u0647 \u062d\u0633\u0646":     "Cha\u00eene bonne (Isn\u00e2duh Hasan)",
-    "\u0625\u0633\u0646\u0627\u062f\u0647 \u0636\u0639\u064a\u0641":    "Cha\u00eene faible (Isn\u00e2duh Da'\u00eef)",
-    "\u0631\u062c\u0627\u0644\u0647 \u062b\u0642\u0627\u062a":     "Ses transmetteurs sont fiables (Rij\u00e2luh Thiq\u00e2t)",
-    "\u0644\u0627 \u0623\u0635\u0644 \u0644\u0647":      "Sans fondement (L\u00e2 Asla Lah)",
-    "\u0628\u0627\u0637\u0644":           "Nul et non avenu (B\u00e2til)",
-    "\u0645\u0643\u0630\u0648\u0628":          "Mensonger (Makdh\u00fbb)",
-}
+app = FastAPI(title="Mîzân API v22.9")
 
-# \u2500\u2500 Glossaire AR \u2192 FR (terminologie islamique g\u00e9n\u00e9rale) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-_GLOSSAIRE_AR_FR: dict[str, str] = {
-    # Jugements \u2014 inclus en priorit\u00e9 (repris de _HUKM_AR_FR pour le patch global)
-    **_HUKM_AR_FR,
-    # Piliers & pratiques
-    "\u0635\u0644\u0627\u0629":            "Sal\u00e2t (pri\u00e8re)",
-    "\u0627\u0644\u0635\u0644\u0627\u0629":          "la Sal\u00e2t (pri\u00e8re)",
-    "\u0632\u0643\u0627\u0629":            "Zak\u00e2t",
-    "\u0627\u0644\u0632\u0643\u0627\u0629":          "la Zak\u00e2t",
-    "\u0635\u0648\u0645":             "Sawm (je\u00fbne)",
-    "\u0631\u0645\u0636\u0627\u0646":           "Ramad\u00e2n",
-    "\u062d\u062c":              "Hajj",
-    "\u0639\u0645\u0631\u0629":            "Umrah",
-    # Croyance & m\u00e9thode
-    "\u062a\u0648\u062d\u064a\u062f":           "Tawh\u00eed (monoth\u00e9isme)",
-    "\u0625\u064a\u0645\u0627\u0646":           "\u00cem\u00e2n (foi)",
-    "\u0639\u0642\u064a\u062f\u0629":           "Aq\u00eedah (croyance)",
-    "\u0645\u0646\u0647\u062c":            "Manhaj (m\u00e9thode)",
-    "\u0633\u0646\u0629":             "Sunnah",
-    "\u0627\u0644\u0633\u0646\u0629":           "la Sunnah",
-    "\u062d\u062f\u064a\u062b":            "Had\u00eeth",
-    "\u0627\u0644\u062d\u062f\u064a\u062b":          "le Had\u00eeth",
-    "\u0634\u0631\u064a\u0639\u0629":           "Shar\u00ee'ah",
-    "\u0641\u0642\u0647":             "Fiqh (jurisprudence islamique)",
-    "\u0641\u062a\u0648\u0649":            "Fatw\u00e2",
-    "\u0625\u062c\u0645\u0627\u0639":           "Ijm\u00e2' (consensus)",
-    "\u0642\u064a\u0627\u0633":            "Qiy\u00e2s (analogie)",
-    "\u0627\u062c\u062a\u0647\u0627\u062f":          "Ijtih\u00e2d",
-    "\u062a\u0641\u0633\u064a\u0631":           "Tafs\u00eer (ex\u00e9g\u00e8se coranique)",
-    # Sciences du Hadith
-    "\u0625\u0633\u0646\u0627\u062f":           "Isn\u00e2d (cha\u00eene de transmission)",
-    "\u0633\u0646\u062f":             "Sanad (cha\u00eene)",
-    "\u0645\u062a\u0646":             "Matn (texte du had\u00eeth)",
-    "\u0631\u062c\u0627\u0644":            "Rij\u00e2l (transmetteurs)",
-    "\u062c\u0631\u062d \u0648\u062a\u0639\u062f\u064a\u0644":      "Jarh wa Ta'd\u00eel (critique des transmetteurs)",
-    "\u062b\u0642\u0629":             "Thiqah (fiable)",
-    "\u0636\u0639\u064a\u0641 \u0627\u0644\u062d\u0641\u0638":      "Faible de m\u00e9moire (Da'\u00eef al-Hifz)",
-    "\u0645\u062c\u0647\u0648\u0644":           "Inconnu (Majh\u00fbl)",
-    "\u0645\u062a\u0631\u0648\u0643":           "Abandonn\u00e9 (Matr\u00fbk)",
-    "\u0643\u0630\u0627\u0628":            "Menteur (Kadhdh\u00e2b)",
-    "\u0637\u0628\u0642\u0629":            "Tabaqah (g\u00e9n\u00e9ration)",
-    "\u0635\u062d\u0627\u0628\u064a":           "Sah\u00e2b\u00ee (Compagnon)",
-    "\u0635\u062d\u0627\u0628\u0629":           "Sah\u00e2bah (Compagnons)",
-    "\u062a\u0627\u0628\u0639\u064a":           "T\u00e2bi'\u00ee (Successeur)",
-    "\u062a\u0627\u0628\u0639\u0648\u0646":          "T\u00e2bi'\u00fbn (Successeurs)",
-    "\u062a\u0628\u0639 \u0627\u0644\u062a\u0627\u0628\u0639\u064a\u0646":    "Atb\u00e2' al-T\u00e2bi'\u00een",
-    # \u00c9thique & vertus
-    "\u0635\u0628\u0631":             "Sabr (patience)",
-    "\u0634\u0643\u0631":             "Shukr (gratitude)",
-    "\u062a\u0642\u0648\u0649":            "Taqw\u00e2 (pi\u00e9t\u00e9)",
-    "\u0625\u062e\u0644\u0627\u0635":           "Ikhl\u00e2s (sinc\u00e9rit\u00e9)",
-    "\u062a\u0648\u0628\u0629":            "Tawbah (repentir)",
-    "\u0631\u062d\u0645\u0629":            "Rahmah (mis\u00e9ricorde)",
-    "\u0645\u063a\u0641\u0631\u0629":           "Maghfirah (pardon divin)",
-    "\u0639\u062f\u0644":             "Adl (justice)",
-    "\u0639\u0644\u0645":             "Ilm (connaissance religieuse)",
-    "\u0632\u0647\u062f":             "Zuhd (asc\u00e8se)",
-    "\u0648\u0631\u0639":             "Wara' (scrupule religieux)",
-    # Eschatologie
-    "\u062c\u0646\u0629":             "Jannah (paradis)",
-    "\u0627\u0644\u062c\u0646\u0629":           "la Jannah (paradis)",
-    "\u0646\u0627\u0631":             "N\u00e2r (feu de l'enfer)",
-    "\u0627\u0644\u0646\u0627\u0631":           "le N\u00e2r (feu de l'enfer)",
-    "\u062c\u0647\u0646\u0645":            "Jahannam (g\u00e9henne)",
-    "\u064a\u0648\u0645 \u0627\u0644\u0642\u064a\u0627\u0645\u0629":     "Yawm al-Qiy\u00e2mah (Jour du Jugement)",
-    "\u0627\u0644\u0622\u062e\u0631\u0629":          "al-\u00c2khirah (l'au-del\u00e0)",
-    "\u0628\u0639\u062b":             "Ba'th (r\u00e9surrection)",
-    "\u062d\u0633\u0627\u0628":            "His\u00e2b (jugement des actes)",
-    "\u0645\u064a\u0632\u0627\u0646":           "M\u00eez\u00e2n (balance des actes)",
-    # Figures & savants
-    "\u0646\u0628\u064a":             "Nab\u00ee (proph\u00e8te)",
-    "\u0631\u0633\u0648\u0644":            "Ras\u00fbl (messager)",
-    "\u0639\u0627\u0644\u0645":            "\u00c2lim (savant islamique)",
-    "\u0639\u0644\u0645\u0627\u0621":           "Ulam\u00e2 (savants islamiques)",
-    "\u0625\u0645\u0627\u0645":            "Im\u00e2m",
-    "\u062e\u0644\u064a\u0641\u0629":           "Khal\u00eefah (calife)",
-    "\u0627\u0644\u0645\u062d\u062f\u062b":          "le Muhaddith (sp\u00e9cialiste du Had\u00eeth)",
-    "\u0645\u062d\u062f\u062b":            "Muhaddith (sp\u00e9cialiste du Had\u00eeth)",
-    "\u0627\u0644\u0641\u0642\u064a\u0647":          "le Faq\u00eeh (juriste islamique)",
-    "\u0627\u0644\u0645\u0641\u0633\u0631":          "le Mufassir (ex\u00e9g\u00e8te)",
-    # Allah & divin
-    "\u0627\u0644\u0644\u0647":            "Allah",
-    "\u0631\u0628":              "Rabb (Seigneur)",
-    "\u062e\u0627\u0644\u0642":            "Kh\u00e2liq (Cr\u00e9ateur)",
-    "\u0627\u0644\u0631\u062d\u0645\u0646":          "ar-Rahm\u00e2n (le Tout-Mis\u00e9ricordieux)",
-    "\u0627\u0644\u0631\u062d\u064a\u0645":          "ar-Rah\u00eem (le Tr\u00e8s-Mis\u00e9ricordieux)",
-    # Rituels & textes
-    "\u0648\u0636\u0648\u0621":            "Wud\u00fb (ablutions)",
-    "\u0633\u062c\u0648\u062f":            "Suj\u00fbd (prosternation)",
-    "\u0623\u0630\u0627\u0646":            "Adh\u00e2n (appel \u00e0 la pri\u00e8re)",
-    "\u0630\u0643\u0631":             "Dhikr (rappel d'Allah)",
-    "\u062f\u0639\u0627\u0621":            "Du'\u00e2 (supplication)",
-    "\u0633\u0648\u0631\u0629":            "S\u00fbrah",
-    "\u0622\u064a\u0629":             "\u00c2
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type", "Cache-Control"],
+)
+
+# =====================================================================
+# UTILITAIRES TRADUCTION
+# =====================================================================
+
+def _patch_glossaire(text: str) -> str:
+    """Applique le glossaire islamique sur un texte traduit."""
+    if not text:
+        return text
+    for ar, fr in _GLOSSAIRE_AR_FR.items():
+        text = text.replace(ar, fr)
+    return text
+
+
+def _protect_hukm(grade_ar: str) -> str:
+    """Retourne la traduction légifèrée du verdict — jamais de traduction profane."""
+    if not grade_ar:
+        return ""
+    grade_stripped = grade_ar.strip()
+    # Correspondance exacte d'abord
+    if grade_stripped in _HUKM_AR_FR:
+        return _HUKM_AR_FR[grade_stripped]
+    # Correspondance partielle
+    for ar, fr in _HUKM_AR_FR.items():
+        if ar in grade_stripped:
+            return fr
+    return grade_stripped
+
+
+async def _google_translate(text: str, target: str = "fr") -> str:
+    """Traduction Google Translate async — timeout 8s."""
+    if not text or not text.strip():
+        return ""
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl":     "ar",
+            "tl":     target,
+            "dt":     "t",
+            "q":      text[:2000],
+        }
+        async with httpx.AsyncClient(timeout=_GT_TIMEOUT) as client:
+            r = await client.get(url, params=params)
+            if r.status_code == 200:
+                data = r.json()
+                parts = []
+                for block in data[0]:
+                    if block and block[0]:
+                        parts.append(str(block[0]))
+                raw = " ".join(parts)
+                return _patch_glossaire(raw)
+    except Exception as e:
+        log.warning(f"[GT] Erreur traduction: {e}")
+    return ""
+
+
+# =====================================================================
+# SCRAPING DORAR.NET
+# =====================================================================
+
+async def _scrape_dorar(query: str) -> list[dict]:
+    """Scrape Dorar.net et retourne une liste de hadiths bruts."""
+    results = []
+    try:
+        params = {"q": query, "x": "0", "y": "0"}
+        headers = {**_HEADERS, "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"}
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+            r = await client.get(_HADITH_S, params=params, headers=headers)
+            if r.status_code != 200:
+                log.warning(f"[Dorar] HTTP {r.status_code}")
+                return []
+            tree = lx.fromstring(r.text)
+
+            cards = tree.cssselect(".hadith-card") or tree.cssselect(".result-item") or []
+            if not cards:
+                # Fallback sélecteurs alternatifs
+                cards = tree.cssselect("div[class*='hadith']") or []
+
+            for card in cards[:5]:
+                try:
+                    # Texte arabe
+                    ar_el = card.cssselect(".hadith-text, .matn, p") 
+                    ar = ar_el[0].text_content().strip() if ar_el else ""
+
+                    # Savant / Mohaddith
+                    savant_el = card.cssselect(".hadith-info .scholar, .mohaddith, .savant")
+                    savant = savant_el[0].text_content().strip() if savant_el else "—"
+
+                    # Source
+                    source_el = card.cssselect(".source, .book, .kitab")
+                    source = source_el[0].text_content().strip() if source_el else "—"
+
+                    # Grade arabe brut
+                    grade_el = card.cssselect(".grade, .hukm, .verdict, span[class*='grade']")
+                    grade_ar = grade_el[0].text_content().strip() if grade_el else ""
+
+                    # Rawi
+                    rawi_el = card.cssselect(".rawi, .narrator")
+                    rawi = rawi_el[0].text_content().strip() if rawi_el else "—"
+
+                    if ar and len(ar) > 10:
+                        results.append({
+                            "arabic_text": ar,
+                            "savant":      savant,
+                            "source":      source,
+                            "grade":       grade_ar,
+                            "rawi":        rawi,
+                        })
+                except Exception as e:
+                    log.warning(f"[Dorar] Parse card error: {e}")
+                    continue
+
+    except Exception as e:
+        log.error(f"[Dorar] Scrape error: {e}")
+
+    return results
+
+
+# =====================================================================
+# ENRICHISSEMENT VIA CLAUDE API
+# =====================================================================
+
+_SYSTEM_ENRICHISSEMENT = """Tu es Al-Mîzân, moteur d'analyse de Hadith selon le Manhaj Salafi.
+Tu analyses les hadiths selon la science du Jarh wa Ta'dîl.
+
+RÈGLES ABSOLUES :
+1. Les verdicts (Sahîh, Da'îf, Hasan, Mawdû', etc.) ne doivent JAMAIS être traduits librement.
+2. Utilise toujours la terminologie islamique exacte avec sa translittération.
+3. Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks.
+
+Format de réponse JSON strict :
+{
+  "french_text": "traduction française du matn",
+  "grade_explique": "explication du verdict en français avec sources",
+  "jarh_tadil": "analyse de la chaîne de transmission",
+  "isnad_chain": "chaîne pipe-séparée: Maillon 1|Nom|Titre|Verdict|Siècle",
+  "sanad_conditions": "analyse des 5 conditions d'authenticité",
+  "mutabaat": "voies de renfort (shawahid/mutaba'at)",
+  "avis_savants": "avis des savants contemporains",
+  "grille_albani": "verdict d'Al-Albani si disponible",
+  "pertinence": "OUI/PARTIEL/NON — explication courte"
+}"""
+
+
+async def _enrich_hadith_claude(
+    hadith: dict,
+    query: str,
+    idx: int,
+) -> dict:
+    """Enrichit un hadith via l'API Claude avec streaming."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        log.warning("[Claude] ANTHROPIC_API_KEY manquante")
+        return hadith
+
+    client = AsyncAnthropic(api_key=api_key)
+    ar_text = hadith.get("arabic_text", "")
+    grade_ar = hadith.get("grade", "")
+    savant = hadith.get("savant", "")
+    source = hadith.get("source", "")
+
+    prompt = f"""Analyse ce hadith selon le Manhaj Salafi :
+
+Texte arabe : {ar_text}
+Savant / Mohaddith : {savant}
+Source : {source}
+Grade arabe (Hukm) : {grade_ar}
+Requête originale : {query}
+
+Fournis l'analyse complète en JSON."""
+
+    try:
+        enriched = dict(hadith)
+        full_response = ""
+
+        async with client.messages.stream(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            system=_SYSTEM_ENRICHISSEMENT,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            async for text in stream.text_stream:
+                full_response += text
+
+        # Parse JSON
+        clean = full_response.strip()
+        clean = re.sub(r"^```json\s*", "", clean)
+        clean = re.sub(r"```$", "", clean)
+        clean = clean.strip()
+
+        data = json.loads(clean)
+
+        # Protection des verdicts — jamais de traduction profane
+        if grade_ar:
+            data["grade_protege"] = _protect_hukm(grade_ar)
+
+        enriched.update(data)
+        return enriched
+
+    except json.JSONDecodeError as e:
+        log.warning(f"[Claude] JSON parse error idx={idx}: {e}")
+        # Fallback traduction Google
+        fr = await _google_translate(ar_text)
+        hadith["french_text"] = fr
+        if grade_ar:
+            hadith["grade_explique"] = _protect_hukm(grade_ar)
+        return hadith
+    except Exception as e:
+        log.error(f"[Claude] Erreur enrichissement idx={idx}: {e}")
+        return hadith
+
+
+# =====================================================================
+# GÉNÉRATEUR SSE
+# =====================================================================
+
+async def _sse_event(event: str, data: Any) -> str:
+    """Formate un événement SSE."""
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+async def _search_generator(query: str) -> AsyncGenerator[str, None]:
+    """Générateur principal du flux SSE."""
+
+    # ── STEP 0 : Initialisation ──
+    yield await _sse_event("status", {"step": "INITIALISATION"})
+    await asyncio.sleep(0.05)
+
+    # ── STEP 1 : Scraping Dorar ──
+    yield await _sse_event("status", {"step": "DORAR"})
+    hadiths_raw = await _scrape_dorar(query)
+
+    # Fallback si Dorar ne retourne rien
+    if not hadiths_raw:
+        log.info(f"[Dorar] Aucun résultat pour: {query}")
+        # Traduction Google du query comme fallback
+        fr_query = await _google_translate(query)
+        yield await _sse_event("dorar", [])
+        yield await _sse_event("status", {"step": "TAKHRIJ"})
+
+        # Enrichissement direct via Claude sans résultat Dorar
+        fake_hadith = {
+            "arabic_text": query if _is_arabic(query) else "",
+            "savant": "—",
+            "source": "—",
+            "grade": "",
+            "rawi": "—",
+            "french_text": fr_query,
+        }
+        enriched = await _enrich_hadith_claude(fake_hadith, query, 0)
+        yield await _sse_event("hadith", {"index": 0, "data": enriched})
+        yield await _sse_event("done", [enriched])
+        return
+
+    # ── STEP 2 : Envoi des hadiths bruts ──
+    yield await _sse_event("status", {"step": "TAKHRIJ"})
+    yield await _sse_event("dorar", hadiths_raw)
+
+    # ── STEP 3 : Enrichissement hadith par hadith ──
+    yield await _sse_event("status", {"step": "RIJAL"})
+    enriched_list = []
+
+    for idx, hadith in enumerate(hadiths_raw):
+        yield await _sse_event("status", {"step": "JARH"})
+
+        # Chunk intermédiaire (typewriter effect)
+        ar_preview = hadith.get("arabic_text", "")[:80]
+        yield await _sse_event("chunk", {"index": idx, "delta": f"Analyse en cours — {ar_preview}…"})
+
+        # Enrichissement complet
+        enriched = await _enrich_hadith_claude(hadith, query, idx)
+
+        # Protection verdict HUKM — règle absolue
+        grade_ar = hadith.get("grade", "")
+        if grade_ar and "grade_explique" not in enriched:
+            enriched["grade_explique"] = _protect_hukm(grade_ar)
+
+        # Traduction Google fallback si pas de french_text
+        if not enriched.get("french_text") and hadith.get("arabic_text"):
+            enriched["french_text"] = await _google_translate(hadith["arabic_text"])
+
+        enriched_list.append(enriched)
+
+        yield await _sse_event("status", {"step": "HUKM"})
+        yield await _sse_event("hadith", {"index": idx, "data": enriched})
+        await asyncio.sleep(0.1)
+
+    # ── STEP 4 : Done ──
+    yield await _sse_event("done", enriched_list)
+
+
+def _is_arabic(text: str) -> bool:
+    """Détecte si le texte contient principalement de l'arabe."""
+    arabic_chars = sum(1 for c in text if "\u0600" <= c <= "\u06ff")
+    return arabic_chars > len(text) * 0.3
+
+
+# =====================================================================
+# ROUTES FASTAPI
+# =====================================================================
+
+@app.get("/api/search")
+async def search(request: Request, q: str = ""):
+    """Endpoint principal — flux SSE de recherche et analyse de hadith."""
+    if not q or not q.strip():
+        return {"error": "Paramètre q requis"}
+
+    accept = request.headers.get("accept", "")
+
+    if "text/event-stream" in accept:
+        return StreamingResponse(
+            _search_generator(q.strip()),
+            media_type="text/event-stream",
+            headers={
+                **CORS_HEADERS,
+                "Cache-Control":  "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+    else:
+        # Fallback JSON — collecte tous les événements
+        results = []
+        async for chunk in _search_generator(q.strip()):
+            if chunk.startswith("event: hadith"):
+                lines = chunk.strip().split("\n")
+                for line in lines:
+                    if line.startswith("data:"):
+                        try:
+                            data = json.loads(line[5:].strip())
+                            if data.get("data"):
+                                results.append(data["data"])
+                        except Exception:
+                            pass
+        return results
+
+
+@app.get("/api/health")
+async def health():
+    """Health check."""
+    return {"status": "ok", "version": "22.9"}
+
+
+@app.options("/api/{path:path}")
+async def options_handler():
+    """CORS preflight."""
+    from fastapi.responses import Response
+    return Response(headers=CORS_HEADERS)
+
+
+# =====================================================================
+# HANDLER VERCEL (WSGI/ASGI)
+# =====================================================================
+
+handler = app
