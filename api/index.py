@@ -28,7 +28,22 @@ from urllib.parse import urlparse, parse_qs
 
 import httpx
 from lxml import html as lxml_html
-from lxml import etree
+from pydantic import BaseModel
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MODÈLE PYDANTIC — VALIDATION NŒUD SILSILA
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SilsilaNode(BaseModel):
+    rank: int = 0
+    name_ar: str
+    fr_name: str = ""
+    role: str = "narrator"
+    rawi_id: str | None = None
+    rawi_url: str = ""
+    century: str = ""
+    death_year: int = 9999
+    verified: bool = False
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  LOGGING
@@ -590,6 +605,18 @@ def _infer_century(name: str) -> str:
     return MISSING
 
 
+_CENTURY_TO_YEAR: dict[str, int] = {
+    "1H": 100, "2H": 200, "3H": 300, "4H": 400, "5H": 500,
+    "6H": 600, "7H": 700, "8H": 800, "9H": 900,
+    "10H": 1000, "11H": 1100, "12H": 1200, "13H": 1300, "14H": 1400,
+}
+
+
+def _century_to_death_year(century: str) -> int:
+    """Convertit un siècle hégirien (ex: '3H') en entier approximatif (ex: 300)."""
+    return _CENTURY_TO_YEAR.get(century, 9999)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  ② APPLICATION DU HUKM — DICTIONNAIRE VERROUILLÉ
 # ─────────────────────────────────────────────────────────────────────────────
@@ -916,15 +943,17 @@ async def _fetch_silsila_from_detail(
                 seen_ids.add(rid)
             seen_norms.add(norm)
 
-            chain.append({
-                "ar_name":  name,
-                "fr_name":  _transliterate(name),
-                "role":     "sahabi" if _is_sahabi(name) else "narrator",
-                "rawi_id":  rid,
-                "rawi_url": DORAR_BASE + href if href.startswith("/") else href,
-                "century":  _infer_century(name),
-                "verified": True,
-            })
+            _c = _infer_century(name)
+            chain.append(SilsilaNode(
+                name_ar=name,
+                fr_name=_transliterate(name),
+                role="sahabi" if _is_sahabi(name) else "narrator",
+                rawi_id=rid,
+                rawi_url=DORAR_BASE + href if href.startswith("/") else href,
+                century=_c,
+                death_year=_century_to_death_year(_c),
+                verified=True,
+            ).model_dump())
 
         log.info(f"Silsila extraite : {len(chain)} nœuds depuis {detail_url}")
 
@@ -958,30 +987,33 @@ def _build_silsila(
     chain: list[dict[str, Any]] = []
 
     # ── Nœud 1 : LE PROPHÈTE ﷺ ─────────────────────────────────────────
-    chain.append({
-        "rank":     1,
-        "ar_name":  "النَّبِيُّ مُحَمَّد ﷺ",
-        "fr_name":  "Le Prophète Muhammad ﷺ",
-        "role":     "prophet",
-        "rawi_id":  None,
-        "rawi_url": "",
-        "century":  "1H",
-        "verified": True,
-    })
+    chain.append(SilsilaNode(
+        rank=1,
+        name_ar="النَّبِيُّ مُحَمَّد ﷺ",
+        fr_name="Le Prophète Muhammad ﷺ",
+        role="prophet",
+        rawi_id=None,
+        rawi_url="",
+        century="1H",
+        death_year=_century_to_death_year("1H"),
+        verified=True,
+    ).model_dump())
 
     # ── CAS 1 : chaîne extraite par scraping ───────────────────────────
     if detail_chain and len(detail_chain) >= 1:
         for rank_offset, node in enumerate(detail_chain, start=2):
-            chain.append({
-                "rank":     rank_offset,
-                "ar_name":  node.get("ar_name") or MISSING,
-                "fr_name":  node.get("fr_name") or _transliterate(node.get("ar_name", "")),
-                "role":     node.get("role", "narrator"),
-                "rawi_id":  node.get("rawi_id"),
-                "rawi_url": node.get("rawi_url", ""),
-                "century":  node.get("century") or MISSING,
-                "verified": True,
-            })
+            _c = node.get("century") or MISSING
+            chain.append(SilsilaNode(
+                rank=rank_offset,
+                name_ar=node.get("name_ar") or MISSING,
+                fr_name=node.get("fr_name") or _transliterate(node.get("name_ar", "")),
+                role=node.get("role", "narrator"),
+                rawi_id=node.get("rawi_id"),
+                rawi_url=node.get("rawi_url", ""),
+                century=_c,
+                death_year=node.get("death_year", _century_to_death_year(_c)),
+                verified=True,
+            ).model_dump())
         log.info(f"Silsila (scraping) : {len(chain)} nœuds")
         return _dedup_chain(chain)
 
@@ -991,54 +1023,60 @@ def _build_silsila(
 
     if rawi_name:
         rawi_role = "sahabi" if _is_sahabi(rawi_name) else "narrator"
-        chain.append({
-            "rank":     2,
-            "ar_name":  rawi_name,
-            "fr_name":  _transliterate(rawi_name),
-            "role":     rawi_role,
-            "rawi_id":  hadith.get("rawi_id"),
-            "rawi_url": hadith.get("rawi_url", ""),
-            "century":  "1H" if rawi_role == "sahabi" else "2H",
-            "verified": True,
-        })
+        _rc = "1H" if rawi_role == "sahabi" else "2H"
+        chain.append(SilsilaNode(
+            rank=2,
+            name_ar=rawi_name,
+            fr_name=_transliterate(rawi_name),
+            role=rawi_role,
+            rawi_id=hadith.get("rawi_id"),
+            rawi_url=hadith.get("rawi_url", ""),
+            century=_rc,
+            death_year=_century_to_death_year(_rc),
+            verified=True,
+        ).model_dump())
 
         if rawi_role == "sahabi":
             # Tâbi'î toujours présent entre Sahabi et compilateur 3H+
-            chain.append({
-                "rank":     3,
-                "ar_name":  "تَابِعِيّ",
-                "fr_name":  "Tâbi'î — Génération des Successeurs (2H)",
-                "role":     "tabii",
-                "rawi_id":  None,
-                "rawi_url": "",
-                "century":  "2H",
-                "verified": False,  # nœud INFÉRÉ
-            })
+            chain.append(SilsilaNode(
+                rank=3,
+                name_ar="تَابِعِيّ",
+                fr_name="Tâbi'î — Génération des Successeurs (2H)",
+                role="tabii",
+                rawi_id=None,
+                rawi_url="",
+                century="2H",
+                death_year=_century_to_death_year("2H"),
+                verified=False,  # nœud INFÉRÉ
+            ).model_dump())
 
             century_mohadd = _infer_century(mohadd_name)
             if century_mohadd not in ("1H", "2H") or century_mohadd == MISSING:
-                chain.append({
-                    "rank":     4,
-                    "ar_name":  "تَابِعُ التَّابِعِيّ",
-                    "fr_name":  "Tâbi' al-Tâbi'în — 2ème génération des Successeurs (3H)",
-                    "role":     "ttt",
-                    "rawi_id":  None,
-                    "rawi_url": "",
-                    "century":  "3H",
-                    "verified": False,  # nœud INFÉRÉ
-                })
+                chain.append(SilsilaNode(
+                    rank=4,
+                    name_ar="تَابِعُ التَّابِعِيّ",
+                    fr_name="Tâbi' al-Tâbi'în — 2ème génération des Successeurs (3H)",
+                    role="ttt",
+                    rawi_id=None,
+                    rawi_url="",
+                    century="3H",
+                    death_year=_century_to_death_year("3H"),
+                    verified=False,  # nœud INFÉRÉ
+                ).model_dump())
 
     if mohadd_name:
-        chain.append({
-            "rank":     len(chain) + 1,
-            "ar_name":  mohadd_name,
-            "fr_name":  _transliterate(mohadd_name),
-            "role":     "muhaddith",
-            "rawi_id":  hadith.get("mohaddith_id"),
-            "rawi_url": hadith.get("mohaddith_url", ""),
-            "century":  _infer_century(mohadd_name),
-            "verified": True,
-        })
+        _mc = _infer_century(mohadd_name)
+        chain.append(SilsilaNode(
+            rank=len(chain) + 1,
+            name_ar=mohadd_name,
+            fr_name=_transliterate(mohadd_name),
+            role="muhaddith",
+            rawi_id=hadith.get("mohaddith_id"),
+            rawi_url=hadith.get("mohaddith_url", ""),
+            century=_mc,
+            death_year=_century_to_death_year(_mc),
+            verified=True,
+        ).model_dump())
 
     log.info(f"Silsila (inférée) : {len(chain)} nœuds")
     return _dedup_chain(chain)
@@ -1050,7 +1088,7 @@ def _dedup_chain(chain: list[dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
 
     for node in chain:
-        key = _normalize_ar(node.get("ar_name", ""))
+        key = _normalize_ar(node.get("name_ar", ""))
         role_key = f"__role__{node.get('role', '')}_{node.get('century', '')}"
         eff_key  = key if key else role_key
 
@@ -1645,30 +1683,6 @@ class handler(BaseHTTPRequestHandler):
             return
 
         self._json({"error": "Route inconnue", "version": VERSION}, status=404)
-
-    def do_POST(self) -> None:
-        try:
-            length  = int(self.headers.get("Content-Length", 0))
-            raw     = self.rfile.read(length) if length > 0 else b"{}"
-            payload = json.loads(raw.decode("utf-8"))
-        except Exception as exc:
-            self._json({"error": f"Corps invalide : {exc}"}, status=400)
-            return
-
-        query = payload.get("query", "").strip()
-        if not query:
-            self._json(
-                {"error": "Paramètre 'query' manquant ou vide", "version": VERSION},
-                status=400,
-            )
-            return
-
-        try:
-            result = asyncio.run(_run_takhrij(query))
-            self._json(result, status=200 if result.get("status") != "error" else 500)
-        except Exception as exc:
-            log.exception("Erreur critique pipeline POST")
-            self._json(_error(f"Erreur interne : {exc}"), status=500)
 
     def log_message(self, fmt: str, *args: Any) -> None:
         log.info(fmt % args)
