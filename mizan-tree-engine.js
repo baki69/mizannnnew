@@ -422,14 +422,7 @@ window.mzRenderIsnadTree = function (containerEl, chain) {
     return;
   }
 
-  /*
-   * [B] TRI FORCÉ — (a, b) => a.death_year - b.death_year
-   * Python est la source de vérité, mais ce garde-fou JS garantit
-   * l'ordre même si la chain arrive non triée (cache, test local…).
-   */
-  var sorted = chain.slice().sort(function (a, b) {
-    return Number(a.death_year || 9999) - Number(b.death_year || 9999);
-  });
+  var sorted = chain.slice();
 
   var total = sorted.length;
   var root  = document.createElement('div');

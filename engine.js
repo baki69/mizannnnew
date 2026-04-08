@@ -1113,7 +1113,7 @@ async function _searchDorarTopic(query) {
   var lb  = document.getElementById('loading-box');
   var box = document.getElementById('result-box');
   if (lb) lb.classList.add('active');
-  box.classList.remove('active');
+  if (box) box.classList.remove('active');
   _chunkBuffers = {};
   _currentStepIdx = 0;
   _advanceStep('INITIALISATION');
@@ -1247,6 +1247,11 @@ async function _searchDorarTopic(query) {
             /* ── EVENT : error ──────────────────────────────── */
             if (evtName === 'error') {
               console.error('[Mizan SSE] Erreur backend:', msg.message || msg);
+              _finishLoading();
+              if (box) {
+                box.innerHTML = '<p style="color:#ef4444;padding:1.5rem;text-align:center;font-size:0.95rem">&#9888;&#65039; ' + (msg.message || 'Erreur serveur') + '</p>';
+                box.classList.add('active');
+              }
               evtName = '';
               continue;
             }
@@ -1316,42 +1321,6 @@ async function _searchDorarTopic(query) {
   }
 }
 
-
-/* ════════════════════════════════════════════════════════════════
-   [STUB LEGACY conservé pour rétro-compatibilité]
-   L'ancien code référençait _searchDorarTopic → mappage interne
-════════════════════════════════════════════════════════════════ */
-function __legacyMapHadithBlock(h) {
-  var g = h.grade || '';
-  var gradeKey = 'INCONNU';
-  if(/صحيح/.test(g))                   gradeKey = 'SAHIH';
-  else if(/حسن/.test(g))               gradeKey = 'HASAN';
-  else if(/ضعيف/.test(g))              gradeKey = 'DAIF';
-  else if(/موضوع|مكذوب|باطل/.test(g)) gradeKey = 'MAWDU';
-  if(gradeKey==='INCONNU' && h.grade_explique) {
-    if(/SAHIH/i.test(h.grade_explique))      gradeKey = 'SAHIH';
-    else if(/HASAN/i.test(h.grade_explique)) gradeKey = 'HASAN';
-    else if(/DA.IF/i.test(h.grade_explique)) gradeKey = 'DAIF';
-    else if(/MAWDU/i.test(h.grade_explique)) gradeKey = 'MAWDU';
-  }
-  return {
-    ar:             h.arabic_text     || '',
-    mohdith:        h.savant          || '—',
-    source:         h.source          || '—',
-    grade:          gradeKey,
-    grade_ar:       g,
-    french:         h.french_text     || '',
-          grade_explique: h.grade_explique  || '',
-          jarh_tadil:     h.jarh_tadil      || '',
-          isnad_chain:    h.isnad_chain     || '',
-          sanad:          h.sanad_conditions|| '',
-          avis:           h.avis_savants    || '',
-          albani:         h.grille_albani   || '',
-          pertinence:     h.pertinence      || '',
-          rawi:           h.rawi            || '—',
-          numero:'', explainGrade:'', takhrij:'', sharh:''
-        };
-}
 
 /* PROMPT_HADITH SUPPRIMÉ — R8 */
 
