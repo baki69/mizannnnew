@@ -386,8 +386,23 @@ _mzGuard('toggleTT',          function() {});
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="list-search" placeholder="Chercher dans les archives..." oninput="clearTimeout(window._mzLsDb);window._mzLsDb=setTimeout(function(){renderList();},200);">
     </div>
+    <!-- Boutons de recherche rapide (Prière, Ablutions, Jeûne) -->
+    <div style="display:flex;gap:6px;padding-bottom:10px;overflow-x:auto;scrollbar-width:none;">
+      <button style="flex-shrink:0;padding:8px 14px;border-radius:12px;background:rgba(99,102,241,.15);border:2px solid rgba(99,102,241,.6);color:rgba(99,102,241,.9);font-family:'Cinzel',serif;font-size:6.5px;font-weight:700;letter-spacing:.12em;cursor:pointer;transition:all .28s;min-width:60px;display:flex;flex-direction:column;align-items:center;gap:2px;" onclick="document.getElementById('list-search').value='Prière';renderList();">
+        <span style="font-family:'Scheherazade New',serif;font-size:14px;line-height:1;">صلاة</span>
+        <span style="opacity:.8;">PRIÈRE</span>
+      </button>
+      <button style="flex-shrink:0;padding:8px 14px;border-radius:12px;background:rgba(34,197,94,.15);border:2px solid rgba(34,197,94,.6);color:rgba(34,197,94,.9);font-family:'Cinzel',serif;font-size:6.5px;font-weight:700;letter-spacing:.12em;cursor:pointer;transition:all .28s;min-width:70px;display:flex;flex-direction:column;align-items:center;gap:2px;" onclick="document.getElementById('list-search').value='Ablutions';renderList();">
+        <span style="font-family:'Scheherazade New',serif;font-size:14px;line-height:1;">وضوء</span>
+        <span style="opacity:.8;">ABLUTIONS</span>
+      </button>
+      <button style="flex-shrink:0;padding:8px 14px;border-radius:12px;background:rgba(168,85,247,.15);border:2px solid rgba(168,85,247,.6);color:rgba(168,85,247,.9);font-family:'Cinzel',serif;font-size:6.5px;font-weight:700;letter-spacing:.12em;cursor:pointer;transition:all .28s;min-width:60px;display:flex;flex-direction:column;align-items:center;gap:2px;" onclick="document.getElementById('list-search').value='Jeûne';renderList();">
+        <span style="font-family:'Scheherazade New',serif;font-size:14px;line-height:1;">صيام</span>
+        <span style="opacity:.8;">JEÛNE</span>
+      </button>
+    </div>
     <!-- Échelle des grades Jarh wa Ta'dil -->
-    
+
     <div class="filter-row">
       <button class="filter-btn active-f" style="background:#2a2206;border:2px solid #d4af37;color:#d4af37" data-filter="all" onclick="setFilter('all',this)"><span class="f-ar">Tout</span><span class="f-fr">TOUS</span></button>
       <button class="filter-btn" style="background:#1e1530;border:2px solid #a78bfa;color:#a78bfa" data-filter="imam" onclick="setFilter('imam',this)"><span class="f-ar">Grand Imam</span><span class="f-fr">IMAM</span></button>
