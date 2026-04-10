@@ -1582,14 +1582,31 @@ function mzToggleAcc(el){
 }
 
 /*
- * _mzVerdict — utilise _getTechnicalGrade pour le rendu
- * gradeRaw : chaîne arabe brute de Dorar (grade_ar ou grade interne)
- * gradeKey : clé interne optionnelle (SAHIH/HASAN/DAIF/MAWDU/INCONNU)
+ * _mzVerdict — rendu du verdict selon la clé pré-classifiée
+ * gradeKey : clé interne (SAHIH/HASAN/DAIF/MAWDU/INCONNU) — SOURCE DE VÉRITÉ
+ * gradeRaw : chaîne arabe brute de Dorar — utilisée UNIQUEMENT si gradeKey absent
+ *
+ * RÈGLE DOCTRINALE : si gradeKey est une clé valide, on s'y fie directement.
+ * On n'écrase JAMAIS un 'Da'if' en 'Sahih' par re-classification depuis grade_ar.
  */
 function _mzVerdict(gradeKey, gradeRaw) {
-  /* Si on recoit une chaine arabe brute -> la classifier d'abord */
   var tg;
-  if (gradeRaw && /[\u0600-\u06FF]/.test(gradeRaw)) {
+  var _VALID_KEYS = ['SAHIH', 'HASAN', 'DAIF', 'MAWDU'];
+  if (gradeKey && _VALID_KEYS.indexOf(gradeKey) !== -1) {
+    /* Clé pré-classifiée valide — liaison directe champ JSON → étiquette UI */
+    var k = gradeKey;
+    var lbl = MZ_LABELS[k] || MZ_LABELS.INCONNU;
+    tg = {
+      key:      k,
+      labelFr:  lbl.fr,
+      labelAr:  lbl.ar,
+      color:    MZ_COLORS[k] || MZ_COLORS.INCONNU,
+      colorBg:  k==='SAHIH'?'rgba(34,197,94,.06)':k==='HASAN'?'rgba(74,222,128,.05)':k==='DAIF'?'rgba(245,158,11,.06)':k==='MAWDU'?'rgba(230,57,70,.07)':'rgba(31,41,55,.6)',
+      colorBd:  k==='SAHIH'?'rgba(34,197,94,.2)':k==='HASAN'?'rgba(74,222,128,.18)':k==='DAIF'?'rgba(245,158,11,.2)':k==='MAWDU'?'rgba(230,57,70,.22)':'rgba(75,85,99,.5)',
+      cssClass: 'v-' + k
+    };
+  } else if (gradeRaw && /[\u0600-\u06FF]/.test(gradeRaw)) {
+    /* Fallback : gradeKey absent ou inconnu — classifier depuis l'arabe brut */
     tg = _getTechnicalGrade(gradeRaw);
   } else {
     var k = gradeKey || 'INCONNU';
