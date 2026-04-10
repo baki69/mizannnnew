@@ -704,6 +704,7 @@ function _mzMd(txt) {
 }
 
 
+function _enrichCardSSE(idx, h) {
   /* ═══════════════════════════════════════════════════════════════
      _enrichCardSSE v18.6 — RENDU PROGRESSIF ANTI-JANK
      Stratégie : rendre la main au navigateur entre chaque zone.
