@@ -1,3 +1,78 @@
+# ══════════════════════════════════════════════════════════════════
+# 🛡️ PROTOCOLE DE SÉCURITÉ BLINDÉ — mizannnnew (Senior Expert)
+# ══════════════════════════════════════════════════════════════════
+# Toute violation d'une règle ci-dessous est un arrêt immédiat.
+# Ces règles ont priorité absolue sur toute autre instruction.
+# ══════════════════════════════════════════════════════════════════
+
+---
+
+## 🔴 RÈGLE 1 — LE DROIT DE VETO (DIFF)
+**Avant tout `git commit`, afficher obligatoirement :**
+- La liste exacte des fichiers modifiés (`git diff --stat`)
+- Un résumé ligne par ligne des suppressions (`git diff` section `-`)
+- Attendre une validation explicite de l'utilisateur ("oui", "go", "valide")
+- **Aucune exception. Même pour un changement d'une seule ligne.**
+
+## 🔴 RÈGLE 2 — LE SANCTUAIRE
+**Interdiction formelle, sans ordre explicite et mot-clé de déverrouillage :**
+- Modifier la logique de verdict dans `engine.js` (`_getTechnicalGrade`, `_normalizeGrade`, `_gradeColor`, `_gradeLabel`, `_mzVerdictCls`)
+- Modifier les regex `_RE_MAWDU`, `_RE_DAIF`, `_RE_SAHIH`
+- Modifier ou tronquer `_SAHIH_WHITELIST`
+- Modifier les fichiers de données : `data.js`, `db.js`, `preachers.js`, `glossaire.js`, `faq.js`
+- Mot-clé de déverrouillage requis : **"DÉVERROU-SANCTUAIRE"** dans le message utilisateur
+
+## 🔴 RÈGLE 3 — LE VERROU DE SYNTAXE
+**Avant tout `git push`, exécution obligatoire de :**
+```bash
+node --check engine.js && node --check mizan-tree-engine.js && node --check app.js
+```
+- Si `node --check` échoue sur un fichier modifié → **push bloqué, corriger d'abord**
+- Cette vérification s'applique à **tous** les fichiers `.js` touchés dans le commit
+
+---
+
+## 🟠 RÈGLE 4 — INVARIANT JARH > TA'DIL (Ordre des niveaux)
+**Dans `engine.js`, la fonction `_getTechnicalGrade()` doit TOUJOURS respecter cet ordre :**
+1. WHITELIST SAHIH (court-circuit prioritaire)
+2. NIVEAU 1 : `_RE_MAWDU` → REJETÉ (rouge)
+3. NIVEAU 2 : `_RE_DAIF` → DA'IF (orange)
+4. NIVEAU 3 : `_RE_SAHIH` → SAHIH/HASAN (vert)
+5. FALLBACK : DA'IF présumé (jamais de vert/gris par défaut)
+
+**Inverser cet ordre = falsification doctrinale. Interdit sans DÉVERROU-SANCTUAIRE.**
+
+## 🟠 RÈGLE 5 — PROTECTION ANTI-DOUBLON DOM
+**Les gardes d'injection CSS ci-dessous sont sacrés — ne jamais supprimer :**
+- `engine.js` : `if(document.getElementById('mizan-isnad-styles')) return;`
+- `mizan-tree-engine.js` : `var old = document.getElementById('mz-tree-css'); if (old) old.remove();`
+
+Supprimer ces gardes provoque des doublons de styles invisibles qui cassent l'animation et l'affichage mobile. **Toute modification de ces blocs est interdite sans justification explicite.**
+
+## 🟠 RÈGLE 6 — INTÉGRITÉ DU REGISTRE _mzRegistry
+**Dans `mizan-tree-engine.js`, la fonction `mzRenderIsnadTree()` doit TOUJOURS :**
+1. Appeler `_mzRegistry.clear()` avant tout nouveau rendu
+2. Conserver `containerEl._mzRafAbort = true` puis `false` pour l'annulation RAF
+3. Supprimer les anciens listeners (`removeEventListener`) avant d'en ajouter de nouveaux
+
+**Omettre `_mzRegistry.clear()` = crash garanti au clic modal sur un rendu précédent.**
+
+## 🟠 RÈGLE 7 — VERROU DU TRI CHRONOLOGIQUE
+**Le tri `chain.sort((a, b) => a.death_year - b.death_year)` est obligatoire** aux deux endroits :
+- `mzRenderIsnadTree()` (ou son appelant)
+- `mzChainFromDorarData()`
+
+Modifier ou supprimer ce tri inverse l'ordre de la chaîne de transmission (isnad), ce qui est une **erreur scientifique grave**. Interdit sans DÉVERROU-SANCTUAIRE.
+
+## 🟠 RÈGLE 8 — PROTECTION DES ZONES AL-ALBANI
+**La `_SAHIH_WHITELIST` dans `engine.js` est une liste de référence scientifique.**
+- Ne jamais retirer un hadith de la whitelist sans citation de source (Al-Albani, Bukhari, Muslim)
+- Ne jamais ajouter un hadith sans vérification de son statut (`صحيح` confirmé)
+- Le fallback "CONSULTER AL-ALBANI" dans `_gradeLabel` et `_getTechnicalGrade` niveau 4 ne doit jamais être supprimé — c'est un garde-fou doctrinal intentionnel
+
+---
+
+# ══════════════════════════════════════════════════════════════════
 # ⚡ PROTOCOLE DE SURVIE TOKEN - mizannnnew
 # Problématique: Gros fichiers (2000+ lignes) + Quota limité + Usage mobile
 # Objectif: -50% à -70% consommation tokens
