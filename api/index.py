@@ -45,6 +45,26 @@ class SilsilaNode(BaseModel):
     death_year: int = 9999
     verified: bool = False
 
+
+class HadithEnrichment(BaseModel):
+    """
+    Enrichissement textuel produit SOUS CONTRAINTE « Zéro Hallucination ».
+
+    Chaque champ est soit :
+      • une chaîne vide (absence honnête — Dorar ne contient pas l'info)
+      • une chaîne renseignée (présence attestée, citation obligatoire)
+
+    Règle d'or : aucun champ n'est jamais inventé par Claude.
+    Source : .clauderules R8 (Protection Zones Al-Albani) + R21 (Test de
+    Restauration Nulle) + demande utilisateur Action 2 (Amâna Médine).
+    """
+    grille_albani: str      = ""   # Verdict(s) d'Al-Albânî présents dans all_verdicts
+    shurut_sihhah: str      = ""   # 5 conditions du Sahîh — déduites DÉTERMINISTEMENT
+    gharib: str             = ""   # Vocabulaire des mots rares — Claude strict
+    sabab_wurud: str        = ""   # Circonstance de narration — Claude strict (très rare)
+    fawaid: str             = ""   # Leçons pratiques — Claude strict
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  LOGGING
 # ─────────────────────────────────────────────────────────────────────────────
@@ -688,6 +708,45 @@ def _group_verdicts_by_mohaddith(
     return grouped
 
 
+def _extract_albani_from_verdicts(verdicts: list[dict[str, Any]]) -> str:
+    """
+    Parcourt all_verdicts et retourne UNIQUEMENT les verdicts attribués
+    à Shaykh Nâsir ad-Dîn al-Albânî, s'ils existent dans la réponse Dorar.
+
+    PROTOCOLE ZÉRO HALLUCINATION :
+      • Lecture seule du champ all_verdicts déjà scrapé.
+      • Aucune invention, aucun appel IA.
+      • Si Al-Albânî n'est pas présent → chaîne vide.
+        Le fallback frontend « CONSULTER AL-ALBANI » (Rule 8) prend le relais.
+    """
+    lines: list[str] = []
+
+    for v in verdicts:
+        moh_ar = (v.get("mohaddith") or "")
+        # Variantes orthographiques arabes courantes du nom
+        if any(
+            k in moh_ar
+            for k in ("الألباني", "الألبانى", "الالباني", "الألبانِي")
+        ):
+            ar = (v.get("ar") or "").strip()
+            fr = (v.get("fr") or "").strip()
+            chunk: list[str] = []
+            if ar:
+                chunk.append(f"**Verdict arabe** : {ar}")
+            if fr:
+                chunk.append(f"**Traduction** : {fr}")
+            if chunk:
+                lines.append(" — ".join(chunk))
+
+    if not lines:
+        return ""
+
+    return (
+        "**GRILLE AL-ALBĀNĪ — Analyse selon Shaykh Nâsir ad-Dîn al-Albânî**\n\n"
+        + "\n\n".join(lines)
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  ③ PARSING HTML DORAR — XPATH ULTRA-PRÉCIS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1107,6 +1166,102 @@ def _silsila_is_valid(chain: list[dict[str, Any]]) -> bool:
     return len(chain) >= 2 and sum(1 for n in chain if n.get("verified")) >= 2
 
 
+def _derive_shurut_sihhah_from_silsila(
+    silsila: list[dict[str, Any]],
+    jarh_grouped: dict[str, dict[str, Any]],
+    hukm_level: str,
+    hukm_raw: str,
+) -> str:
+    """
+    Déduit l'état des 5 conditions classiques du Sahîh (Ibn as-Salah,
+    Muqaddima) UNIQUEMENT à partir des données déjà scrapées par Dorar
+    et du dictionnaire Hukm verrouillé.
+
+    Les 5 conditions canoniques :
+      1. Ittisâl as-Sanad    — Continuité ininterrompue de la chaîne
+      2. 'Adâlat ar-Ruwât    — Intégrité morale des rapporteurs
+      3. Dabt ar-Ruwât       — Précision mémorielle des rapporteurs
+      4. 'Adam ash-Shudhûdh  — Absence d'anomalie (contradiction de sens)
+      5. 'Adam al-'Illah     — Absence de défaut caché
+
+    PROTOCOLE ZÉRO HALLUCINATION :
+      • Aucun appel IA, aucune supposition.
+      • Si Dorar ne fournit aucun indicateur → « NON INDIQUÉE PAR LA SOURCE ».
+      • « ÉTABLIE » seulement si la preuve est directe (hukm sahih/hasan
+        + absence de marqueur négatif).
+      • « ABSENTE » seulement si Dorar mentionne explicitement le défaut.
+
+    Retourne un bloc markdown consommable par _mzMd côté frontend.
+    """
+    raw = hukm_raw or ""
+
+    # ── Condition 1 : Ittisâl as-Sanad (continuité) ───────────────────
+    n_verified = sum(1 for n in silsila if n.get("verified"))
+    if n_verified >= 3:
+        c1_state = "ÉTABLIE"
+        c1_note  = f"silsila scrapée ({n_verified} nœuds vérifiés)"
+    elif n_verified >= 2:
+        c1_state = "PARTIELLE"
+        c1_note  = f"chaîne minimale ({n_verified} nœuds vérifiés)"
+    else:
+        c1_state = "NON INDIQUÉE PAR LA SOURCE"
+        c1_note  = "silsila insuffisante dans Dorar"
+
+    # ── Condition 2 : 'Adâlat ar-Ruwât (intégrité morale) ─────────────
+    jarh_neg_re = re.compile(
+        r"كذاب|متروك|وضاع|متهم|kadhdhab|matruk|wadd|muttaham",
+        re.IGNORECASE,
+    )
+    if jarh_neg_re.search(raw):
+        c2_state = "ABSENTE"
+        c2_note  = "rapporteur désigné menteur/abandonné dans hukm_raw"
+    elif hukm_level in ("sahih", "hasan"):
+        c2_state = "ÉTABLIE"
+        c2_note  = "hukm global sahih/hasan — rapporteurs réputés intègres"
+    else:
+        c2_state = "NON INDIQUÉE PAR LA SOURCE"
+        c2_note  = "intégrité non attestée explicitement par Dorar"
+
+    # ── Condition 3 : Dabt ar-Ruwât (précision mémorielle) ────────────
+    dabt_neg_re = re.compile(
+        r"ضعيف|سيء\s*الحفظ|مختلط|لين|layyin|da'?if|sayyi'|mukhtalit",
+        re.IGNORECASE,
+    )
+    if dabt_neg_re.search(raw):
+        c3_state = "ABSENTE"
+        c3_note  = "précision mémorielle explicitement contestée"
+    elif hukm_level in ("sahih", "hasan"):
+        c3_state = "ÉTABLIE"
+        c3_note  = "hukm global sahih/hasan — précision reconnue"
+    else:
+        c3_state = "NON INDIQUÉE PAR LA SOURCE"
+        c3_note  = "précision non attestée explicitement par Dorar"
+
+    # ── Condition 4 : 'Adam ash-Shudhûdh (absence d'anomalie) ─────────
+    if re.search(r"شاذ|منكر|shadh|munkar", raw, re.IGNORECASE):
+        c4_state = "ABSENTE"
+        c4_note  = "hadith marqué shâdh ou munkar"
+    else:
+        c4_state = "NON INDIQUÉE PAR LA SOURCE"
+        c4_note  = "Dorar n'indique ni shudhûdh ni son absence"
+
+    # ── Condition 5 : 'Adam al-'Illah (absence de défaut caché) ───────
+    if re.search(r"معلول|معل\b|ma'?lul|mu'?allal", raw, re.IGNORECASE):
+        c5_state = "ABSENTE"
+        c5_note  = "hadith marqué mu'allal"
+    else:
+        c5_state = "NON INDIQUÉE PAR LA SOURCE"
+        c5_note  = "Dorar n'indique aucune 'illah"
+
+    return (
+        f"**1. Ittisâl as-Sanad** (Continuité) : {c1_state} — {c1_note}\n\n"
+        f"**2. 'Adâlat ar-Ruwât** (Intégrité) : {c2_state} — {c2_note}\n\n"
+        f"**3. Dabt ar-Ruwât** (Précision) : {c3_state} — {c3_note}\n\n"
+        f"**4. 'Adam ash-Shudhûdh** (Absence d'anomalie) : {c4_state} — {c4_note}\n\n"
+        f"**5. 'Adam al-'Illah** (Absence de défaut caché) : {c5_state} — {c5_note}"
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  ⑥ TRADUCTION FR→AR VIA CLAUDE HAIKU
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1221,6 +1376,122 @@ async def _translate_matn_ar_to_fr(
         log.warning(f"Erreur traduction matn : {exc}")
 
     return MISSING
+
+
+async def _enrich_via_claude(
+    client: httpx.AsyncClient,
+    ar_text: str,
+    hukm_fr: str,
+    savant: str,
+    source: str,
+    api_key: str,
+) -> dict[str, str]:
+    """
+    Enrichissement textuel d'un hadith via Claude Haiku 4.5 SOUS CONTRAINTE
+    « Zéro Hallucination » — Protocole Amâna Médine (Action 2).
+
+    Champs demandés :
+      • gharib       → vocabulaire des mots rares du matn
+      • sabab_wurud  → circonstance de narration SI attestée (très rare)
+      • fawaid       → leçons pratiques concrètes
+
+    Garanties anti-hallucination :
+      1. temperature = 0.0 (déterminisme maximal)
+      2. Prompt explicite : « vide par défaut, remplit seulement si cité »
+      3. Extraction JSON stricte, fallback {} si parse échoue
+      4. Toute exception → retour silencieux {"": "", "": "", "": ""}
+         (Option Silencieuse validée Q3)
+      5. Aucune clé ne peut être None — toujours str (compatible Pydantic)
+
+    Retourne un dict à 3 clés str ; les valeurs peuvent être vides.
+    """
+    blank = {"gharib": "", "sabab_wurud": "", "fawaid": ""}
+
+    if not api_key or not ar_text:
+        return blank
+
+    prompt = (
+        "Tu es un savant du hadith travaillant pour Mîzân as-Sunnah, "
+        "projet de science du hadith présenté à Médine.\n\n"
+        "╔══════════════════════════════════════════════════════════════╗\n"
+        "║  PROTOCOLE ZÉRO HALLUCINATION — VERROU ABSOLU                ║\n"
+        "╠══════════════════════════════════════════════════════════════╣\n"
+        "║  • Tu ne remplis un champ QUE si tu peux le justifier par    ║\n"
+        "║    une source classique précise (Sharh de Nawawî sur Muslim,║\n"
+        "║    Fath al-Bârî d'Ibn Hajar, Subul as-Salâm, Nayl al-Awtâr, ║\n"
+        "║    An-Nihâyah d'Ibn al-Athîr, Tafsîr Ibn Kathîr, etc.).      ║\n"
+        "║  • Dans le DOUTE : retourne une chaîne VIDE (\"\").            ║\n"
+        "║  • Ne devine JAMAIS. Ne reformule JAMAIS un champ incertain.║\n"
+        "║  • Aucun mot comme « probablement », « sans doute »,         ║\n"
+        "║    « peut-être », « il semble ». Interdits.                  ║\n"
+        "║  • Aucun texte hors du JSON. Aucun markdown, aucun commentaire.║\n"
+        "║  • temperature = 0.0 : sois déterministe.                    ║\n"
+        "╚══════════════════════════════════════════════════════════════╝\n\n"
+        f"Hadith arabe :\n{ar_text}\n\n"
+        f"Grade selon les muhaddithîn : {hukm_fr or 'non spécifié'}\n"
+        f"Rapporté par : {savant or 'non spécifié'}\n"
+        f"Source : {source or 'non spécifiée'}\n\n"
+        "Retourne EXACTEMENT ce JSON (rien avant, rien après) :\n"
+        '{\n'
+        '  "gharib": "Explication des mots rares du matn — 1 à 3 mots MAX, format «mot : explication» séparés par «;». VIDE si aucun mot n\'est rare ou si tu n\'es pas certain.",\n'
+        '  "sabab_wurud": "Circonstance de narration UNIQUEMENT si tu peux citer une source classique qui la rapporte. VIDE sinon — ce champ est VIDE dans 95% des cas par défaut.",\n'
+        '  "fawaid": "1 à 3 leçons pratiques concrètes, format puces «• leçon». VIDE si aucune leçon claire et non spéculative."\n'
+        '}'
+    )
+
+    try:
+        resp = await client.post(
+            ANTHROPIC_URL,
+            headers={
+                "x-api-key":         api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type":      "application/json",
+            },
+            json={
+                "model":       ANTHROPIC_MODEL,
+                "max_tokens":  600,
+                "temperature": 0.0,  # Verrou déterministe
+                "messages":    [{"role": "user", "content": prompt}],
+            },
+            timeout=TIMEOUT_CLAUDE,
+        )
+    except Exception as exc:
+        log.warning(f"Erreur enrich Claude (réseau) : {exc}")
+        return blank
+
+    if resp.status_code != 200:
+        log.warning(f"Erreur enrich Claude HTTP {resp.status_code}")
+        return blank
+
+    try:
+        raw = (
+            resp.json().get("content", [{}])[0].get("text", "") or ""
+        ).strip()
+    except Exception as exc:
+        log.warning(f"Erreur enrich Claude (parse body) : {exc}")
+        return blank
+
+    # Extraction JSON robuste : Claude peut entourer de ```json … ```
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not match:
+        log.warning("Enrich Claude : aucun objet JSON trouvé dans la réponse")
+        return blank
+
+    try:
+        data = json.loads(match.group(0))
+    except Exception as exc:
+        log.warning(f"Erreur enrich Claude (json.loads) : {exc}")
+        return blank
+
+    if not isinstance(data, dict):
+        return blank
+
+    # Normalisation stricte : toutes les valeurs deviennent des str
+    return {
+        "gharib":      (data.get("gharib")      or "").strip() if isinstance(data.get("gharib"),      str) else "",
+        "sabab_wurud": (data.get("sabab_wurud") or "").strip() if isinstance(data.get("sabab_wurud"), str) else "",
+        "fawaid":      (data.get("fawaid")      or "").strip() if isinstance(data.get("fawaid"),      str) else "",
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1363,11 +1634,34 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
             hukm    = hadith.get("hukm") or _apply_hukm(hadith.get("hukm_raw", ""))
             grouped = _group_verdicts_by_mohaddith(hadith.get("all_verdicts", []))
             takhrij = _build_takhrij(hadith)
-            matn_fr = await _translate_matn_ar_to_fr(
-                client,
-                hadith.get("ar_text", ""),
-                api_key,
-                hukm.get("fr", ""),
+
+            # ── Zones déterministes (zéro IA, lecture seule Dorar) ──
+            grille_albani_txt = _extract_albani_from_verdicts(
+                hadith.get("all_verdicts", [])
+            )
+            shurut_sihhah_txt = _derive_shurut_sihhah_from_silsila(
+                silsila,
+                grouped,
+                hukm.get("level", "unknown"),
+                hadith.get("hukm_raw", ""),
+            )
+
+            # ── Traduction matn + enrichissement Claude EN PARALLÈLE ──
+            matn_fr, enrich = await asyncio.gather(
+                _translate_matn_ar_to_fr(
+                    client,
+                    hadith.get("ar_text", ""),
+                    api_key,
+                    hukm.get("fr", ""),
+                ),
+                _enrich_via_claude(
+                    client,
+                    hadith.get("ar_text", ""),
+                    hukm.get("fr", ""),
+                    hadith.get("mohaddith", ""),
+                    hadith.get("source", ""),
+                    api_key,
+                ),
             )
 
             results.append({
@@ -1392,6 +1686,13 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
                     "by_mohaddith": grouped,
                 },
                 "takhrij": takhrij,
+                "enrichment": {
+                    "grille_albani":    grille_albani_txt,
+                    "sanad_conditions": shurut_sihhah_txt,
+                    "gharib":           enrich.get("gharib", ""),
+                    "sabab_wurud":      enrich.get("sabab_wurud", ""),
+                    "fawaid":           enrich.get("fawaid", ""),
+                },
                 "metadata": {
                     "rawi": {
                         "ar":      hadith.get("rawi", "") or MISSING,
@@ -1546,8 +1847,36 @@ async def _stream_takhrij(query: str) -> AsyncGenerator[str, None]:
             hukm    = hadith.get("hukm") or _apply_hukm(hadith.get("hukm_raw", ""))
             grouped = _group_verdicts_by_mohaddith(hadith.get("all_verdicts", []))
             takhrij = _build_takhrij(hadith)
-            matn_fr = await _translate_matn_ar_to_fr(
-                client, hadith.get("ar_text", ""), api_key, hukm.get("fr", "")
+
+            # ── Zones déterministes (zéro IA, lecture seule Dorar) ──
+            grille_albani_txt = _extract_albani_from_verdicts(
+                hadith.get("all_verdicts", [])
+            )
+            shurut_sihhah_txt = _derive_shurut_sihhah_from_silsila(
+                silsila,
+                grouped,
+                hukm.get("level", "unknown"),
+                hadith.get("hukm_raw", ""),
+            )
+
+            # ── Traduction matn + enrichissement Claude EN PARALLÈLE ──
+            #    Option Silencieuse : toute erreur → chaînes vides, pas de
+            #    propagation au frontend, pas de badge UI.
+            matn_fr, enrich = await asyncio.gather(
+                _translate_matn_ar_to_fr(
+                    client,
+                    hadith.get("ar_text", ""),
+                    api_key,
+                    hukm.get("fr", ""),
+                ),
+                _enrich_via_claude(
+                    client,
+                    hadith.get("ar_text", ""),
+                    hukm.get("fr", ""),
+                    hadith.get("mohaddith", ""),
+                    hadith.get("source", ""),
+                    api_key,
+                ),
             )
 
             yield _sse("hadith", {
@@ -1568,6 +1897,12 @@ async def _stream_takhrij(query: str) -> AsyncGenerator[str, None]:
                     "silsila_nodes":  len(silsila),
                     "silsila_valid":  _silsila_is_valid(silsila),
                     "takhrij":        takhrij,
+                    # ── Zones Action 2 (nouveaux champs, peuvent être "") ──
+                    "grille_albani":    grille_albani_txt,
+                    "sanad_conditions": shurut_sihhah_txt,
+                    "gharib":           enrich.get("gharib", ""),
+                    "sabab_wurud":      enrich.get("sabab_wurud", ""),
+                    "fawaid":           enrich.get("fawaid", ""),
                 },
             })
 
