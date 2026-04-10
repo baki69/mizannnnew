@@ -556,18 +556,56 @@ function _renderTopicList(hadiths, query) {
    ● Chaque hadith enrichi livré dès qu'il est prêt
 ════════════════════════════════════════════════════════════════ */
 function _mapHadithRaw(h) {
-  var g = h.grade || '';
+  /* ── SCHEMA 2026-04 (backend 0624fea) : grade_ar remplace grade ── */
+  var g = h.grade_ar || h.grade || '';
   /* Utiliser le dictionnaire universel Jarh wa Ta'dil — Niveau 1→4 */
   var tg = _getTechnicalGrade(g);
   var gradeKey = tg.key;
+  /* ── SCHEMA 2026-04 : grade_def/grade_fr remplacent grade_explique ── */
+  var gradeExplique = h.grade_def || h.grade_fr || h.grade_explique || '';
   /* Fallback : si INCONNU, tenter de lire la couleur du grade_explique */
-  if(gradeKey === 'INCONNU' && h.grade_explique) {
-    var ex = h.grade_explique;
+  if(gradeKey === 'INCONNU' && gradeExplique) {
+    var ex = gradeExplique;
     if(/#2ecc71|#22c55e|SAHIH/i.test(ex))       gradeKey = 'SAHIH';
     else if(/#f39c12|#4ade80|HASAN/i.test(ex))  gradeKey = 'HASAN';
     else if(/#e74c3c|DA.IF/i.test(ex))           gradeKey = 'DAIF';
     else if(/#8e44ad|MAWDU/i.test(ex))           gradeKey = 'MAWDU';
   }
+
+  /* ── SCHEMA 2026-04 : silsila (array de nœuds Pydantic) → isnad_chain (pipe string)
+     Format attendu par _mzIsnadFromPipe : "Maillon N|nom|titre|verdict|siecle\n…"
+     SilsilaNode : {rank, name_ar, fr_name, role, century, death_year, verified} ── */
+  var isnadStr = '';
+  if(Array.isArray(h.silsila) && h.silsila.length) {
+    isnadStr = h.silsila.map(function(n, i) {
+      var nom     = n.name_ar || n.fr_name || n.ar_name || '';
+      var titre   = n.fr_name || n.role || '';
+      var verdict = (n.verified === false) ? 'INFERE' : (n.role || 'TRANSMIS').toUpperCase();
+      var siecle  = n.century || '';
+      return 'Maillon ' + (i + 1) + '|' + nom + '|' + titre + '|' + verdict + '|' + siecle;
+    }).join('\n');
+  } else if(typeof h.isnad_chain === 'string') {
+    isnadStr = h.isnad_chain;
+  }
+
+  /* ── SCHEMA 2026-04 : grade_by_mohadd (dict groupé) → jarh_tadil (markdown)
+     Forme : { "Al-Bukhari": {ar_name, fr_name, hukm_ar, hukm_fr, level, color}, … } ── */
+  var jarhStr = '';
+  if(h.grade_by_mohadd && typeof h.grade_by_mohadd === 'object' && !Array.isArray(h.grade_by_mohadd)) {
+    var parts = [];
+    Object.keys(h.grade_by_mohadd).forEach(function(k) {
+      var v = h.grade_by_mohadd[k];
+      if(!v) return;
+      var nm = v.fr_name || k || '';
+      var ar = v.ar_name || '';
+      var hk = v.hukm_fr || v.hukm_ar || '';
+      parts.push('**' + nm + '**' + (ar ? ' (' + ar + ')' : '') + ' : ' + hk);
+    });
+    jarhStr = parts.join('\n');
+  } else if(typeof h.jarh_tadil === 'string') {
+    jarhStr = h.jarh_tadil;
+  }
+
   return {
     ar:             h.arabic_text     || '',
     mohdith:        h.savant          || '—',
@@ -575,16 +613,17 @@ function _mapHadithRaw(h) {
     grade:          gradeKey,
     grade_ar:       g,
     french:         h.french_text     || '',
-    grade_explique: h.grade_explique  || '',
-    jarh_tadil:     h.jarh_tadil      || '',
-    isnad_chain:    h.isnad_chain     || '',
+    grade_explique: gradeExplique,
+    jarh_tadil:     jarhStr,
+    isnad_chain:    isnadStr,
     sanad:          h.sanad_conditions|| '',
     mutabaat:       h.mutabaat        || '',
     avis:           h.avis_savants    || '',
     albani:         h.grille_albani   || '',
     pertinence:     h.pertinence      || '',
     rawi:           h.rawi            || '—',
-    numero:'', explainGrade:'', takhrij:'', sharh:''
+    takhrij:        h.takhrij         || '',
+    numero:'', explainGrade:'', sharh:''
   };
 }
 
