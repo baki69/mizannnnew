@@ -45,6 +45,7 @@ function goTo(view) {
 window.goTo = goTo; /* alias global — fixes ReferenceError in inline HTML onclick */
 
 function goToList(){renderList();goTab('list');}
+window.goToList = goToList;
 
 /* ════════════════════════════════════════
    HADITH ANALYSE — MOTEUR IA AL MIZÂN
@@ -1334,6 +1335,7 @@ function startHadithFromHome(){
   goTo('hadith');
   analyzeHadith(txt);
 }
+window.startHadithFromHome = startHadithFromHome;
 
 /* ══════════════════════════════════════════════
    MOTEUR OMNISCIENT — Recherche dans PREACHERS + FIRAQ + MYTHES
@@ -1404,6 +1406,7 @@ function omniSearch(val){
   box.innerHTML=html;
   box.style.display=html?'block':'none';
 }
+window.omniSearch = omniSearch;
 
 function normalize(s){
   return s.toLowerCase()
@@ -1533,6 +1536,7 @@ function analyzeHadith(txt){
     }
   },stepTime);
 }
+window.analyzeHadith = analyzeHadith;
 
 /* callClaudeAPI SUPPRIMÉE — R9 */
 
@@ -2612,6 +2616,7 @@ function setFilter(f,btn){
   btn.classList.add('active-f');
   renderList();
 }
+window.setFilter = setFilter;
 function setRegion(r,btn){
   currentRegion=r;
   document.querySelectorAll('#region-filters .filter-btn').forEach(function(b){b.classList.remove('active-r');});
@@ -2774,6 +2779,7 @@ function renderList(){
   });
   if(!total)el.innerHTML='<div class="no-results"><div class="ar">لا نتائج</div><p>AUCUN RÉSULTAT</p></div>';
 }
+window.renderList = renderList;
 
 /* ── FIX SCOPE v22 : iaSectionLoadMore GLOBALE (window.*) ──────
    Était enfermée dans renderList → invisible depuis les onclick HTML.
@@ -2824,11 +2830,13 @@ function openDetail(id){
     goTo('detail');
   }
 }
+window.openDetail = openDetail;
 function setDetTab(tab,btn){
   currentDetTab=tab;
   document.querySelectorAll('.det-tab-btn').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');renderDetContent();
 }
+window.setDetTab = setDetTab;
 // ════════════════════════════════════════════════════════════════
 //  NOUVELLE renderDetContent — onglets ESSENTIEL + EXPERT
 //  Lit p.evaluations (nouveau format) ET p.steps (ancien format)
@@ -3499,6 +3507,7 @@ function renderMythes(){
     });
   }
 }
+window.renderMythes = renderMythes;
 var currentMyth=null;
 function openMythDetail(id){
   currentMyth=MYTHES.find(function(m){return m.id===id;});
@@ -3533,6 +3542,7 @@ function openMythDetail(id){
   html+='<div class="disclaimer" style="margin-top:8px;"><p>⚠ Fondé sur le Coran, la Sunnah authentique, la voie des 4 Imams (Abou Hanifa, Malik, Ach-Chafi\'i, Ahmad) et confirmé par Al-Albani, Ibn Baz, Ibn Uthaymin et Al-Fawzan.</p></div>';
   el.innerHTML=html;goTo('myth-detail');
 }
+window.openMythDetail = openMythDetail;
 
 /* ════════════════════════════════════════
    AL-FIRAQ
@@ -3574,6 +3584,7 @@ function renderFiraq(){
     el.appendChild(card);
   });
 }
+window.renderFiraq = renderFiraq;
 var currentFiraq=null;
 var firaqTab='essentiel';
 function openFiraqDetail(id){
@@ -3583,12 +3594,14 @@ function openFiraqDetail(id){
   renderFiraqDetail();
   goTo('firaq-detail');
 }
+window.openFiraqDetail = openFiraqDetail;
 function setFiraqTab(tab,btn){
   firaqTab=tab;
   document.querySelectorAll('.fq-tab-btn').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
   renderFiraqDetail();
 }
+window.setFiraqTab = setFiraqTab;
 function renderFiraqDetail(){
   var f=currentFiraq;
   var badge=document.getElementById('firaq-det-badge');
@@ -3755,6 +3768,7 @@ function renderFiraqDetail(){
   el.innerHTML='';
   el.appendChild(container);
 }
+window.renderFiraqDetail = renderFiraqDetail;
 
 /* ════════════════════════════════════════
    INIT
