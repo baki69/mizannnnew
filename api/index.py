@@ -77,7 +77,7 @@ log = logging.getLogger("mizan_v24")
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONSTANTES
 # ─────────────────────────────────────────────────────────────────────────────
-VERSION         = "24.0"
+VERSION         = "24.1"
 DORAR_API_URL   = "https://dorar.net/dorar_api.json"
 DORAR_BASE      = "https://dorar.net"
 ANTHROPIC_URL   = "https://api.anthropic.com/v1/messages"
@@ -561,6 +561,49 @@ def _clean_name(raw: str) -> str:
     return re.sub(r"\s+", " ", raw).strip()
 
 
+# Regex compilée une seule fois — supprime titres honorifiques et formules
+# post-nom parasites dans les entrées de silsila/isnad.
+_ISNAD_TITLE_RE = re.compile(
+    r"""
+    # ── Titres honorifiques pré-nom ──────────────────────────────────────
+    \b(
+        الإمام|الامام|الشيخ|الشّيخ|الحافظ|الحافظ|العلامة|العلامه|
+        المحدث|المحدّث|الحجة|الثقة|الثّقة|الفقيه|القاضي|الحاكم|
+        الخطيب|السيد|الأستاذ|الدكتور|سيدنا|مولانا|شيخنا|حافظنا
+    )\s+
+    |
+    # ── Formules post-nom (bénédictions / métadonnées) ──────────────────
+    \s*[–\-—]\s*.*$               # tiret suivi de métadonnées
+    |
+    \s*[،,]\s*\d+\s*[هـه]?\s*$   # numéro de décès en fin
+    |
+    \s*\(.*?\)                    # parenthèses entières
+    |
+    \s*(رحمه الله|رحمه الله تعالى|رضي الله عنه|رضي الله عنها|
+        صلى الله عليه وسلم|عليه السلام|حفظه الله|وفقه الله|
+        نفعنا الله به|أمد الله في عمره|المتوفى|ت\.)
+    """,
+    re.VERBOSE | re.UNICODE,
+)
+
+
+def _clean_isnad_name(raw: str) -> str:
+    """
+    Nettoie un nom dans la silsila/isnad :
+      1. Applique _clean_name (formules de transmission, caractères parasites)
+      2. Supprime les titres honorifiques (الإمام, الشيخ, الحافظ…)
+      3. Supprime les formules post-nom (رحمه الله, رضي الله عنه…)
+      4. Supprime les métadonnées entre parenthèses et après tiret
+
+    Conserve UNIQUEMENT le nom propre canonique du narrateur.
+    """
+    name = _clean_name(raw)
+    if not name:
+        return ""
+    name = _ISNAD_TITLE_RE.sub("", name)
+    return re.sub(r"\s+", " ", name).strip()
+
+
 def _is_arabic(text: str) -> bool:
     """True si le texte est majoritairement arabe (> 30 %)."""
     if not text:
@@ -700,38 +743,54 @@ def _get_authority_score(mohaddith: str, source: str) -> int:
     Calcule le score d'autorité d'une source de hadith selon la hiérarchie
     classique des muhaddithîn.
 
-    Échelle canonique :
-      • 100 : Al-Bukhârî (بخاري) / Muslim (مسلم)          — Sahîhayn
-      •  90 : Mâlik (مالك) / Al-Muwatta' (موطأ)
-      •  80 : Abû Dâwûd, At-Tirmidhî, An-Nasâ'î, Ibn Mâja,
-              Ahmad ibn Hanbal                            — Sunan + Musnad
-      •  70 : Cheikh Al-Albânî (الألباني)                 — Autorité moderne
+    BARÈME DE FER — Règle de non-dégradation :
+      • 100 : Al-Bukhârî / Muslim (Sahîhayn)    → Verdict forcé « صحيح »
+      •  90 : Muwatta' Mâlik                    → Conserve verdict Dorar
+      •  80 : Sunan (Abû Dâwûd, Tirmidhî, Nasâ'î, Ibn Mâja) + Musnad Ahmad
+      •  70 : Cheikh Al-Albânî                  — Autorité moderne
       •   0 : Source inconnue ou non listée
 
-    Le champ `mohaddith` ET le champ `source` sont tous deux inspectés, car
-    Dorar peut placer le nom du compilateur dans l'un ou l'autre selon le
-    bloc HTML.
+    Règle d'inspection : les champs `mohaddith` ET `source` sont tous deux
+    scannés — Dorar distribue parfois le nom du compilateur dans l'un ou
+    l'autre selon le bloc HTML rendu.
+
+    Ordre des vérifications : du plus spécifique (titre de livre complet)
+    au plus générique (nom seul), pour éviter les faux positifs.
     """
     blob = f"{mohaddith or ''} {source or ''}"
     norm = _normalize_ar(blob)
 
-    # 100 — Sahîhayn (Bukhârî + Muslim)
-    for key in ("بخاري", "مسلم"):
+    # ── 100 — Sahîhayn ───────────────────────────────────────────────────
+    # Titres complets d'abord, puis nom court ; "صحيح مسلم" avant "مسلم"
+    # pour éviter toute collision avec d'autres noms portant la racine.
+    for key in (
+        "صحيح البخاري", "الجامع الصحيح", "بخاري",
+        "صحيح مسلم", "مسلم",
+    ):
         if _normalize_ar(key) in norm:
             return 100
 
-    # 90 — Mâlik / Muwatta'
-    for key in ("مالك", "موطأ"):
+    # ── 90 — Muwatta' Mâlik ──────────────────────────────────────────────
+    # "موطأ" et "موطأ مالك" d'abord ; "مالك بن أنس" ensuite ; "مالك" en
+    # dernier (plus générique mais acceptable dans le champ mohaddith).
+    for key in ("موطا مالك", "موطا", "مالك بن انس", "مالك"):
         if _normalize_ar(key) in norm:
             return 90
 
-    # 80 — Sunan + Musnad Ahmad
-    for key in ("أبو داود", "ترمذي", "نسائي", "ابن ماجه", "أحمد"):
+    # ── 80 — Sunan + Musnad Ahmad ─────────────────────────────────────────
+    # "مسند أحمد" et "ابن حنبل" avant "أحمد" seul pour plus de précision.
+    for key in (
+        "مسند احمد", "ابن حنبل",
+        "ابو داود", "ترمذي", "نسائي", "ابن ماجه",
+        "احمد",
+    ):
         if _normalize_ar(key) in norm:
             return 80
 
-    # 70 — Al-Albânî
-    if _normalize_ar("الألباني") in norm:
+    # ── 70 — Al-Albânî ───────────────────────────────────────────────────
+    # _normalize_ar unifie alif + ya → toutes variantes orthographiques
+    # (الألباني / الألبانى / الالباني) convergent vers "الالباني".
+    if _normalize_ar("الالباني") in norm:
         return 70
 
     return 0
@@ -741,12 +800,18 @@ def _dedupe_hadiths_by_authority(
     hadiths: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """
-    Déduplication STRICTE par matn arabe (normalisé).
+    Déduplication STRICTE par matn arabe (normalisé) — BARÈME DE FER.
 
     Pour un même texte arabe (ou quasi-identique), on ne conserve QUE le
     hadith ayant le plus haut score d'autorité via `_get_authority_score`.
     Cela empêche qu'un hadith de Bukhârî/Muslim soit éliminé ou dégradé à
     cause d'un doublon issu d'un recueil secondaire mal gradé sur Dorar.
+
+    Règle de fusion des verdicts :
+      • Quel que soit le "gagnant" (score max), les `all_verdicts` des deux
+        doublons sont FUSIONNÉS pour ne perdre aucun avis savant.
+      • Le `detail_url` du perdant est conservé comme fallback si le gagnant
+        n'en possède pas.
 
     L'ordre d'apparition relatif est préservé pour les matns uniques.
     La quasi-identité est obtenue via `_normalize_ar` (NFC + tashkîl +
@@ -773,20 +838,50 @@ def _dedupe_hadiths_by_authority(
             order.append(key)
             continue
 
-        existing_score = best[key].get("_authority_score", 0)
+        existing      = best[key]
+        existing_score = existing.get("_authority_score", 0)
+
+        # Fusion des verdicts : on cumule toujours les avis savants des deux
+        # doublons pour ne jamais perdre une opinion doctrinale.
+        merged_verdicts: list[dict[str, Any]] = list(
+            existing.get("all_verdicts") or []
+        ) + list(h.get("all_verdicts") or [])
+
         if score > existing_score:
             log.info(
                 f"[DEDUP] Matn dupliqué — remplacement "
                 f"(score {existing_score} → {score}) — "
-                f"source retenue : {h.get('source', '?')}"
+                f"source retenue : {h.get('source', '?')} / "
+                f"source écartée : {existing.get('source', '?')}"
             )
-            best[key] = {**h, "_authority_score": score}
+            # Gagnant = nouvelle entrée (score plus élevé)
+            best[key] = {
+                **h,
+                "_authority_score": score,
+                "all_verdicts":     merged_verdicts,
+                # Conserver le detail_url du perdant si le gagnant n'en a pas
+                "detail_url": (
+                    h.get("detail_url")
+                    or existing.get("detail_url")
+                    or ""
+                ),
+            }
         else:
             log.info(
                 f"[DEDUP] Matn dupliqué — conservation "
                 f"(score {existing_score} ≥ {score}) — "
                 f"source écartée : {h.get('source', '?')}"
             )
+            # Gagnant = entrée existante ; on enrichit juste ses verdicts
+            best[key] = {
+                **existing,
+                "all_verdicts": merged_verdicts,
+                "detail_url": (
+                    existing.get("detail_url")
+                    or h.get("detail_url")
+                    or ""
+                ),
+            }
 
     return [best[k] for k in order]
 
@@ -1131,7 +1226,7 @@ async def _fetch_silsila_from_detail(
         for link in narrator_links:
             href  = link.get("href", "")
             rid   = _extract_rijal_id(href)
-            name  = _clean_name(link.text_content())
+            name  = _clean_isnad_name(link.text_content())
 
             if not name or len(name) < 2:
                 continue
@@ -1557,29 +1652,31 @@ async def _enrich_via_claude(
     prompt = (
         "Tu es un savant du hadith travaillant pour Mîzân as-Sunnah, "
         "projet de science du hadith présenté à Médine.\n\n"
-        "╔══════════════════════════════════════════════════════════════╗\n"
-        "║  PROTOCOLE ZÉRO HALLUCINATION — VERROU ABSOLU                ║\n"
-        "╠══════════════════════════════════════════════════════════════╣\n"
-        "║  • Tu ne remplis un champ QUE si tu peux le justifier par    ║\n"
-        "║    une source classique précise (Sharh de Nawawî sur Muslim,║\n"
-        "║    Fath al-Bârî d'Ibn Hajar, Subul as-Salâm, Nayl al-Awtâr, ║\n"
-        "║    An-Nihâyah d'Ibn al-Athîr, Tafsîr Ibn Kathîr, etc.).      ║\n"
-        "║  • Dans le DOUTE : retourne une chaîne VIDE (\"\").            ║\n"
-        "║  • Ne devine JAMAIS. Ne reformule JAMAIS un champ incertain.║\n"
-        "║  • Aucun mot comme « probablement », « sans doute »,         ║\n"
-        "║    « peut-être », « il semble ». Interdits.                  ║\n"
-        "║  • Aucun texte hors du JSON. Aucun markdown, aucun commentaire.║\n"
-        "║  • temperature = 0.0 : sois déterministe.                    ║\n"
-        "╚══════════════════════════════════════════════════════════════╝\n\n"
+        "╔══════════════════════════════════════════════════════════════════╗\n"
+        "║   PROTOCOLE AMÂNA — VERROU ABSOLU ZÉRO HALLUCINATION            ║\n"
+        "╠══════════════════════════════════════════════════════════════════╣\n"
+        "║  SOURCES AUTORISÉES — DEUX OUVRAGES UNIQUEMENT :                ║\n"
+        "║    ① Fath al-Bârî  (ابن حجر العسقلاني)                         ║\n"
+        "║    ② An-Nihâyah fî Gharîb al-Hadîth  (ابن الأثير)              ║\n"
+        "║  RÈGLES ABSOLUES :                                               ║\n"
+        "║  • Remplir un champ UNIQUEMENT si l'information est explicitement║\n"
+        "║    attestée dans l'un de ces deux ouvrages.                      ║\n"
+        "║  • Dans le DOUTE : chaîne vide \"\" — TOUJOURS.                  ║\n"
+        "║  • NE JAMAIS deviner, extrapoler ou reformuler un champ.         ║\n"
+        "║  • Mots interdits : « probablement », « sans doute »,           ║\n"
+        "║    « peut-être », « il semble », « on peut dire ».              ║\n"
+        "║  • Aucun texte hors du JSON (pas de markdown, pas de commentaire)║\n"
+        "║  • Chaque valeur absente ou incertaine = chaîne vide \"\"         ║\n"
+        "╚══════════════════════════════════════════════════════════════════╝\n\n"
         f"Hadith arabe :\n{ar_text}\n\n"
         f"Grade selon les muhaddithîn : {hukm_fr or 'non spécifié'}\n"
         f"Rapporté par : {savant or 'non spécifié'}\n"
         f"Source : {source or 'non spécifiée'}\n\n"
         "Retourne EXACTEMENT ce JSON (rien avant, rien après) :\n"
         '{\n'
-        '  "gharib": "Explication des mots rares du matn — 1 à 3 mots MAX, format «mot : explication» séparés par «;». VIDE si aucun mot n\'est rare ou si tu n\'es pas certain.",\n'
-        '  "sabab_wurud": "Circonstance de narration UNIQUEMENT si tu peux citer une source classique qui la rapporte. VIDE sinon — ce champ est VIDE dans 95% des cas par défaut.",\n'
-        '  "fawaid": "1 à 3 leçons pratiques concrètes, format puces «• leçon». VIDE si aucune leçon claire et non spéculative."\n'
+        '  "gharib": "Explication des mots rares selon An-Nihâyah d\'Ibn al-Athîr — 1 à 3 mots MAX, format «mot : explication» séparés par «;». Chaîne vide \"\" si aucun mot rare ou si An-Nihâyah ne le mentionne pas.",\n'
+        '  "sabab_wurud": "Circonstance de narration UNIQUEMENT si Ibn Hajar la cite dans Fath al-Bârî. Chaîne vide \"\" sinon — ce champ est \"\" dans 95% des cas.",\n'
+        '  "fawaid": "1 à 3 leçons pratiques issues de Fath al-Bârî, format puces «• leçon». Chaîne vide \"\" si Fath al-Bârî n\'en mentionne pas pour ce hadith."\n'
         '}'
     )
 
@@ -1814,10 +1911,12 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
             )
 
             results.append({
+                # ── Clé 1 : Matn ─────────────────────────────────────────
                 "matn": {
                     "ar": hadith.get("ar_text", "") or MISSING,
                     "fr": matn_fr,
                 },
+                # ── Clé 2 : Silsila / Isnad ──────────────────────────────
                 "silsila": {
                     "nodes":        silsila,
                     "total":        len(silsila),
@@ -1825,42 +1924,48 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
                     "has_inferred": any(not n.get("verified") for n in silsila),
                     "source":       "dorar_detail" if detail_chain else "inference",
                 },
+                # ── Clé 3 : Hukm / Verdict ───────────────────────────────
                 "hukm": {
                     "ar":           hukm.get("ar", MISSING),
                     "fr":           hukm.get("fr", MISSING),
                     "level":        hukm.get("level", "unknown"),
                     "color":        hukm.get("color", "#6b7280"),
                     "definition":   hukm.get("definition", MISSING),
-                    "raw":          hukm.get("raw", ""),
+                    "raw":          hukm.get("raw", "") or "",
                     "by_mohaddith": grouped,
                 },
+                # ── Clé 4 : Takhrîj ──────────────────────────────────────
                 "takhrij": takhrij,
+                # ── Clé 5 : Enrichissement (Amâna — "" si absent) ────────
                 "enrichment": {
-                    "grille_albani":    grille_albani_txt,
-                    "sanad_conditions": shurut_sihhah_txt,
-                    "gharib":           enrich.get("gharib", ""),
+                    "grille_albani":    grille_albani_txt    or "",
+                    "sanad_conditions": shurut_sihhah_txt    or "",
+                    "gharib":           enrich.get("gharib",      ""),
                     "sabab_wurud":      enrich.get("sabab_wurud", ""),
-                    "fawaid":           enrich.get("fawaid", ""),
+                    "fawaid":           enrich.get("fawaid",      ""),
                 },
+                # ── Clé 6 : Métadonnées sources ───────────────────────────
                 "metadata": {
                     "rawi": {
                         "ar":      hadith.get("rawi", "") or MISSING,
                         "fr":      _transliterate(hadith.get("rawi", "")) or MISSING,
                         "id":      hadith.get("rawi_id") or MISSING,
-                        "url":     hadith.get("rawi_url", ""),
+                        "url":     hadith.get("rawi_url", "") or "",
                         "role":    "sahabi" if _is_sahabi(hadith.get("rawi", "")) else "narrator",
                     },
                     "mohaddith": {
                         "ar":      hadith.get("mohaddith", "") or MISSING,
                         "fr":      _transliterate(hadith.get("mohaddith", "")) or MISSING,
                         "id":      hadith.get("mohaddith_id") or MISSING,
-                        "url":     hadith.get("mohaddith_url", ""),
+                        "url":     hadith.get("mohaddith_url", "") or "",
                         "century": _infer_century(hadith.get("mohaddith", "")),
                     },
                     "source": {
                         "ar":  hadith.get("source", "") or MISSING,
-                        "url": hadith.get("source_url", ""),
+                        "url": hadith.get("source_url", "") or "",
                     },
+                    # ── Barème de Fer : score d'autorité (miroir backend) ─
+                    "authority_score": hadith.get("_authority_score", 0),
                 },
             })
 
@@ -1874,12 +1979,17 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
         }
 
 
-def _error(msg: str) -> dict[str, Any]:
-    """Construit une réponse d'erreur standardisée."""
+def _error(msg: str, query_ar: str = "", query_orig: str = "") -> dict[str, Any]:
+    """Construit une réponse d'erreur standardisée — 6 clés conteneur garanties."""
     log.error(f"[Mîzân v24] {msg}")
     return {
-        "status": "error", "message": msg,
-        "results": [], "total": 0, "version": VERSION,
+        "status":     "error",
+        "message":    msg,
+        "query_ar":   query_ar,
+        "query_orig": query_orig,
+        "results":    [],
+        "total":      0,
+        "version":    VERSION,
     }
 
 
@@ -2036,27 +2146,34 @@ async def _stream_takhrij(query: str) -> AsyncGenerator[str, None]:
             yield _sse("hadith", {
                 "index": idx,
                 "data": {
+                    # ── Zone 1 : Matn ───────────────────────────────────
                     "arabic_text":    hadith.get("ar_text", "") or MISSING,
                     "french_text":    matn_fr,
+                    # ── Zone 2 : Métadonnées sources ────────────────────
                     "savant":         hadith.get("mohaddith", "") or MISSING,
                     "source":         hadith.get("source", "") or MISSING,
                     "rawi":           hadith.get("rawi", "") or MISSING,
+                    # ── Zone 3 : Hukm / Verdict ─────────────────────────
                     "grade_ar":       hukm.get("ar", MISSING),
                     "grade_fr":       hukm.get("fr", MISSING),
                     "grade_level":    hukm.get("level", "unknown"),
                     "grade_color":    hukm.get("color", "#6b7280"),
                     "grade_def":      hukm.get("definition", MISSING),
                     "grade_by_mohadd": grouped,
+                    # ── Zone 4 : Silsila / Isnad ─────────────────────────
                     "silsila":        silsila,
                     "silsila_nodes":  len(silsila),
                     "silsila_valid":  _silsila_is_valid(silsila),
+                    # ── Zone 5 : Takhrîj ─────────────────────────────────
                     "takhrij":        takhrij,
-                    # ── Zones Action 2 (nouveaux champs, peuvent être "") ──
-                    "grille_albani":    grille_albani_txt,
-                    "sanad_conditions": shurut_sihhah_txt,
-                    "gharib":           enrich.get("gharib", ""),
+                    # ── Zone 6 : Score d'autorité (Barème de Fer) ────────
+                    "_authority_score": hadith.get("_authority_score", 0),
+                    # ── Zones 7-12 : Enrichissement (Amâna — "" si absent) ─
+                    "grille_albani":    grille_albani_txt    or "",
+                    "sanad_conditions": shurut_sihhah_txt    or "",
+                    "gharib":           enrich.get("gharib",      ""),
                     "sabab_wurud":      enrich.get("sabab_wurud", ""),
-                    "fawaid":           enrich.get("fawaid", ""),
+                    "fawaid":           enrich.get("fawaid",      ""),
                 },
             })
 

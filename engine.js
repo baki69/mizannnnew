@@ -625,15 +625,28 @@ function _mapHadithRaw(h) {
     jarhStr = h.jarh_tadil;
   }
 
-  /* ── Score d'autorité (miroir backend _get_authority_score)
-     100 = Sahîhayn (Al-Bukhârî / Muslim) ── */
-  var _authBlob = ((h.savant || '') + ' ' + (h.source || '')).toLowerCase();
+  /* ── Score d'autorité (miroir exact du barème de fer backend v24.1)
+     Priorité : backend _authority_score > calcul local
+     100 = Sahîhayn (Al-Bukhârî / Muslim) → Verdict forcé « صحيح »
+      90 = Muwatta' Mâlik
+      80 = Sunan (Abû Dâwûd, Tirmidhî, Nasâ'î, Ibn Mâja) + Musnad Ahmad
+      70 = Cheikh Al-Albânî ── */
   var authorityScore = 0;
-  if(/بخاري|مسلم|bukhari|muslim/i.test(_authBlob))                         authorityScore = 100;
-  else if(/مالك|موطأ|malik|muwatta/i.test(_authBlob))                      authorityScore = 90;
-  else if(/أبو\s*داود|ترمذي|نسائي|ابن\s*ماجه|أحمد|dawud|tirmidhi|nasa|ibn\s*maja|ahmad/i.test(_authBlob)) authorityScore = 80;
-  else if(/الألباني|albani/i.test(_authBlob))                              authorityScore = 70;
-  if(typeof h._authority_score === 'number') authorityScore = h._authority_score;
+  /* Priorité 1 : valeur calculée côté backend (la plus fiable) */
+  if(typeof h._authority_score === 'number') {
+    authorityScore = h._authority_score;
+  } else {
+    /* Priorité 2 : recalcul local (fallback si backend ne renvoie pas le champ) */
+    var _authBlob = ((h.savant || '') + ' ' + (h.source || ''));
+    if(/صحيح البخاري|الجامع الصحيح|بخاري|صحيح مسلم|مسلم|bukhari|muslim/i.test(_authBlob))
+      authorityScore = 100;
+    else if(/موطأ مالك|موطأ|مالك بن أنس|مالك|muwatta|malik/i.test(_authBlob))
+      authorityScore = 90;
+    else if(/مسند أحمد|ابن حنبل|أبو داود|ترمذي|نسائي|ابن ماجه|أحمد|dawud|tirmidhi|nasa|ibn maja|ahmad/i.test(_authBlob))
+      authorityScore = 80;
+    else if(/الألباني|albani/i.test(_authBlob))
+      authorityScore = 70;
+  }
 
   return {
     ar:             h.arabic_text     || '',
@@ -945,24 +958,29 @@ function _enrichCardSSE(idx, h) {
         }
 
         if(h.sanad) {
-          /* Comptage des états : ABSENTE / NON INDIQUÉE / ÉTABLIE */
-          var nbAbsent   = (h.sanad.match(/ABSENTE?/g) || []).length;
-          var nbNonInd   = (h.sanad.match(/NON\s*INDIQU(?:\u00c9E?S?|EES?)/gi) || []).length;
-          var nbEtablie  = (h.sanad.match(/\u00c9TABLIES?|ETABLIES?/gi) || []).length;
-          var sCol, sLbl, sLblAr;
-          if(nbEtablie === 0 && (nbNonInd > 0 || nbAbsent === 0)) {
-            /* Règle Amâna : aucune condition confirmée → badge gris neutre */
-            sCol   = '#6b7280';
-            sLbl   = 'ANALYSE EN ATTENTE';
-            sLblAr = '';
-          } else if(nbAbsent > 0) {
-            sCol   = '#e74c3c';
-            sLbl   = nbAbsent + ' condition(s) ABSENTE(S)';
-            sLblAr = '';
+          /* ── BARÈME DE FER : Comptage des 5 états Shurut as-Sihhah ──
+             Priorité stricte : ABSENTE > PARTIELLE > ÉTABLIE > EN ATTENTE
+             (Règle Amâna : Jarh précède Ta'dil — l'absence prime) */
+          var nbAbsent  = (h.sanad.match(/ABSENTE?/g) || []).length;
+          var nbPartiel = (h.sanad.match(/PARTIELLE?/g) || []).length;
+          var nbEtablie = (h.sanad.match(/\u00c9TABLIES?|ETABLIES?/gi) || []).length;
+          var sCol, sLbl;
+          if(nbAbsent > 0) {
+            /* Niveau 1 — ROUGE : au moins une condition explicitement absente */
+            sCol = '#e74c3c';
+            sLbl = nbAbsent + ' condition(s) ABSENTE(S)';
+          } else if(nbEtablie === 5) {
+            /* Niveau 2 — VERT : toutes les 5 conditions établies */
+            sCol = '#2ecc71';
+            sLbl = '5/5 \u00c9TABLIES';
+          } else if(nbEtablie > 0 || nbPartiel > 0) {
+            /* Niveau 3 — ORANGE : conditions partiellement établies */
+            sCol = '#f39c12';
+            sLbl = nbEtablie + '/5 \u00c9TABLIES' + (nbPartiel ? ' (' + nbPartiel + ' PARTIELLE(S))' : '');
           } else {
-            sCol   = '#2ecc71';
-            sLbl   = '5/5 \u00c9TABLIES';
-            sLblAr = '';
+            /* Niveau 4 — GRIS : données insuffisantes (règle Amâna) */
+            sCol = '#6b7280';
+            sLbl = 'ANALYSE EN ATTENTE';
           }
           z2Html += '<details class="mz-details" style="margin:8px 18px;">'
             + '<summary class="mz-details-sum" style="color:' + sCol + ';cursor:pointer;font-family:Cinzel,serif;'
@@ -1016,35 +1034,19 @@ function _enrichCardSSE(idx, h) {
             + _mzMd(content) + '</div></details>';
         }
 
-        /* ── 4 accord\u00e9ons Amâna (Règle : omis si vide/null/absent) ── */
-        z3Html += _mzAmanaAcc('\ud83d\udcda EXPLICATION DES SAVANTS (SHARH)',  h.sharh,       '#d4af37', true);
-        z3Html += _mzAmanaAcc('\ud83d\udcd6 VOCABULAIRE (GHAR\u00ceB)',          h.gharib,      '#5dade2', false);
-        z3Html += _mzAmanaAcc('\ud83c\udfdb\ufe0f CONTEXTE (SABAB AL-WUR\u00dbD)', h.sabab_wurud, '#9b59b6', false);
-        z3Html += _mzAmanaAcc('\ud83d\udca1 LE\u00c7ONS (FAW\u00c2\u02beID)',     h.fawaid,      '#2ecc71', false);
-
-        if(h.avis) {
-          z3Html += '<details class="mz-details" open style="margin:8px 18px 4px;">'
-            + '<summary class="mz-details-sum" style="color:#d4af37;cursor:pointer;font-family:Cinzel,serif;'
-            + 'font-size:9px;letter-spacing:.18em;list-style:none;padding:10px 14px;border:1px solid rgba(201,168,76,.2);'
-            + 'border-radius:8px;background:rgba(201,168,76,.04);">'
-            + '&#9656; TR\u00c9SOR DES 14 SI\u00c8CLES \u2014 Commentaires des Savants'
-            + '</summary>'
-            + '<div style="padding:12px 14px;border:1px solid rgba(201,168,76,.1);border-top:none;border-radius:0 0 8px 8px;'
-            + 'font-family:\'Cormorant Garamond\',serif;font-size:14px;line-height:1.85;color:rgba(228,208,160,.9);">'
-            + _mzMd(h.avis) + '</div></details>';
-        }
-
-        if(h.albani) {
-          z3Html += '<details class="mz-details" style="margin:8px 18px 8px;">'
-            + '<summary class="mz-details-sum" style="color:#f39c12;cursor:pointer;font-family:Cinzel,serif;'
-            + 'font-size:9px;letter-spacing:.18em;list-style:none;padding:10px 14px;border:1px solid rgba(243,156,18,.2);'
-            + 'border-radius:8px;background:rgba(243,156,18,.04);">'
-            + '&#9656; GRILLE AL-ALB\u0100N\u012b \u2014 Analyse de la Silsilah'
-            + '</summary>'
-            + '<div style="padding:12px 14px;border:1px solid rgba(243,156,18,.1);border-top:none;border-radius:0 0 8px 8px;'
-            + 'font-family:\'Cormorant Garamond\',serif;font-size:13.5px;line-height:1.8;">'
-            + _mzMd(h.albani) + '</div></details>';
-        }
+        /* ── STRUCTURE 12 ZONES (Barème de Fer v24.1) ───────────────────
+           Zone 9  : GHARIB       — vocabulaire rare (An-Nihâyah)
+           Zone 10 : SABAB AL-WURÛD — contexte de narration (Fath al-Bârî)
+           Zone 11 : FAWÂ'ID      — leçons pratiques (Fath al-Bârî)
+           Zone 12 : GRILLE AL-ALBÂNÎ — analyse de la Silsilah
+           Règle Amâna : zone omise si vide "" (jamais de contenu inventé) ── */
+        z3Html += _mzAmanaAcc('\ud83d\udcd6 VOCABULAIRE \u2014 GHAR\u012aB AL-HAD\u012aTH', h.gharib,      '#5dade2', false);
+        z3Html += _mzAmanaAcc('\ud83c\udfdb\ufe0f CONTEXTE \u2014 SABAB AL-WUR\u016bD',    h.sabab_wurud, '#9b59b6', false);
+        z3Html += _mzAmanaAcc('\ud83d\udca1 LE\u00c7ONS \u2014 FAW\u0100\u02beID',         h.fawaid,      '#2ecc71', false);
+        z3Html += _mzAmanaAcc(
+          '\ud83d\udccc GRILLE AL-ALB\u0100N\u012b \u2014 As-Silsilah',
+          h.albani, '#f39c12', false
+        );
 
         if(z3Html) secAcc.innerHTML = z3Html;
       }
