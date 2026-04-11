@@ -685,6 +685,150 @@ def _apply_hukm(hukm_raw: str) -> dict[str, Any]:
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  ②.5  HIÉRARCHIE D'AUTORITÉ DES SOURCES — ANTI-DÉGRADATION SAHÎHAYN
+#
+#  Mission : corriger l'erreur grave d'Amâna où des hadiths rapportés par
+#  Bukhârî ou Muslim étaient tagués Da'îf à cause d'un doublon (même matn)
+#  provenant d'un recueil secondaire mal gradé sur Dorar. Le moteur doit
+#  TOUJOURS privilégier la source la plus haute dans la hiérarchie classique
+#  des muhaddithîn.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_authority_score(mohaddith: str, source: str) -> int:
+    """
+    Calcule le score d'autorité d'une source de hadith selon la hiérarchie
+    classique des muhaddithîn.
+
+    Échelle canonique :
+      • 100 : Al-Bukhârî (بخاري) / Muslim (مسلم)          — Sahîhayn
+      •  90 : Mâlik (مالك) / Al-Muwatta' (موطأ)
+      •  80 : Abû Dâwûd, At-Tirmidhî, An-Nasâ'î, Ibn Mâja,
+              Ahmad ibn Hanbal                            — Sunan + Musnad
+      •  70 : Cheikh Al-Albânî (الألباني)                 — Autorité moderne
+      •   0 : Source inconnue ou non listée
+
+    Le champ `mohaddith` ET le champ `source` sont tous deux inspectés, car
+    Dorar peut placer le nom du compilateur dans l'un ou l'autre selon le
+    bloc HTML.
+    """
+    blob = f"{mohaddith or ''} {source or ''}"
+    norm = _normalize_ar(blob)
+
+    # 100 — Sahîhayn (Bukhârî + Muslim)
+    for key in ("بخاري", "مسلم"):
+        if _normalize_ar(key) in norm:
+            return 100
+
+    # 90 — Mâlik / Muwatta'
+    for key in ("مالك", "موطأ"):
+        if _normalize_ar(key) in norm:
+            return 90
+
+    # 80 — Sunan + Musnad Ahmad
+    for key in ("أبو داود", "ترمذي", "نسائي", "ابن ماجه", "أحمد"):
+        if _normalize_ar(key) in norm:
+            return 80
+
+    # 70 — Al-Albânî
+    if _normalize_ar("الألباني") in norm:
+        return 70
+
+    return 0
+
+
+def _dedupe_hadiths_by_authority(
+    hadiths: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Déduplication STRICTE par matn arabe (normalisé).
+
+    Pour un même texte arabe (ou quasi-identique), on ne conserve QUE le
+    hadith ayant le plus haut score d'autorité via `_get_authority_score`.
+    Cela empêche qu'un hadith de Bukhârî/Muslim soit éliminé ou dégradé à
+    cause d'un doublon issu d'un recueil secondaire mal gradé sur Dorar.
+
+    L'ordre d'apparition relatif est préservé pour les matns uniques.
+    La quasi-identité est obtenue via `_normalize_ar` (NFC + tashkîl +
+    alif/yâ unifiés) tronqué à 220 caractères : absorbe les micro-variations
+    de ponctuation et de longueur.
+    """
+    best: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+
+    for h in hadiths:
+        ar_text = h.get("ar_text", "") or ""
+        key = _normalize_ar(ar_text)[:220]
+        if not key:
+            # Matn absent → on garde le hadith sous une clé unique
+            key = f"__no_matn__{len(order)}"
+
+        score = _get_authority_score(
+            h.get("mohaddith", ""),
+            h.get("source", ""),
+        )
+
+        if key not in best:
+            best[key] = {**h, "_authority_score": score}
+            order.append(key)
+            continue
+
+        existing_score = best[key].get("_authority_score", 0)
+        if score > existing_score:
+            log.info(
+                f"[DEDUP] Matn dupliqué — remplacement "
+                f"(score {existing_score} → {score}) — "
+                f"source retenue : {h.get('source', '?')}"
+            )
+            best[key] = {**h, "_authority_score": score}
+        else:
+            log.info(
+                f"[DEDUP] Matn dupliqué — conservation "
+                f"(score {existing_score} ≥ {score}) — "
+                f"source écartée : {h.get('source', '?')}"
+            )
+
+    return [best[k] for k in order]
+
+
+def _apply_authority_override(
+    hadith: dict[str, Any],
+    hukm: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    RÈGLE DE FER (Amâna Médine) : si le score d'autorité d'une source atteint
+    100 (Bukhârî ou Muslim), on force le verdict à « صحيح » / « Sahih »,
+    PEU IMPORTE ce que la chaîne de traitement ou Dorar a pu remonter.
+
+    Cette règle écrase tout verdict contradictoire hérité d'un doublon ou
+    d'un parsing partiel. Elle ne s'applique PAS aux scores < 100 — le
+    dictionnaire Hukm verrouillé conserve alors sa préséance.
+    """
+    score = _get_authority_score(
+        hadith.get("mohaddith", ""),
+        hadith.get("source", ""),
+    )
+    if score < 100:
+        return hukm
+
+    log.info(
+        f"[AUTHORITY=100] Override Sahîh forcé — "
+        f"source : {hadith.get('source', '?')} — "
+        f"ancien hukm : {hukm.get('ar', '?')}"
+    )
+
+    sahih_ref = _HUKM_AR_FR.get("صحيح", {})
+    return {
+        **hukm,
+        "ar":         "صحيح",
+        "fr":         "Sahih",
+        "level":      "sahih",
+        "color":      sahih_ref.get("color", "#22c55e"),
+        "definition": sahih_ref.get("definition", hukm.get("definition", MISSING)),
+        "raw":        hukm.get("raw", "") or "صحيح",
+    }
+
+
 def _group_verdicts_by_mohaddith(
     verdicts: list[dict[str, Any]]
 ) -> dict[str, dict[str, Any]]:
@@ -1618,6 +1762,9 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
         if not hadiths_bruts:
             return _error("Aucun hadith extrait — structure HTML Dorar inattendue")
 
+        # ── DÉDUPLICATION PAR AUTORITÉ (anti-dégradation Sahîhayn) ───────
+        hadiths_bruts = _dedupe_hadiths_by_authority(hadiths_bruts)
+
         # ── ENRICHISSEMENT DE CHAQUE HADITH ──────────────────────────────
         results: list[dict[str, Any]] = []
 
@@ -1632,6 +1779,8 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
 
             silsila = _build_silsila(hadith, detail_chain or None)
             hukm    = hadith.get("hukm") or _apply_hukm(hadith.get("hukm_raw", ""))
+            # RÈGLE DE FER : score 100 (Bukhârî/Muslim) → Sahîh forcé
+            hukm    = _apply_authority_override(hadith, hukm)
             grouped = _group_verdicts_by_mohaddith(hadith.get("all_verdicts", []))
             takhrij = _build_takhrij(hadith)
 
@@ -1808,6 +1957,9 @@ async def _stream_takhrij(query: str) -> AsyncGenerator[str, None]:
             yield _sse("done", [])
             return
 
+        # ── DÉDUPLICATION PAR AUTORITÉ (anti-dégradation Sahîhayn) ───────
+        hadiths_bruts = _dedupe_hadiths_by_authority(hadiths_bruts)
+
         # Envoi immédiat des données brutes pour affichage instantané
         yield _sse("dorar", [
             {
@@ -1845,6 +1997,8 @@ async def _stream_takhrij(query: str) -> AsyncGenerator[str, None]:
             })
 
             hukm    = hadith.get("hukm") or _apply_hukm(hadith.get("hukm_raw", ""))
+            # RÈGLE DE FER : score 100 (Bukhârî/Muslim) → Sahîh forcé
+            hukm    = _apply_authority_override(hadith, hukm)
             grouped = _group_verdicts_by_mohaddith(hadith.get("all_verdicts", []))
             takhrij = _build_takhrij(hadith)
 
