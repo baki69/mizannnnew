@@ -1545,6 +1545,8 @@ async def _translate_query_fr_to_ar(
             )
             log.info(f"Traduction : «{query_fr}» → «{translated}»")
             return translated or query_fr
+        else:
+            log.error(f"ANTHROPIC FAILURE {resp.status_code} | URL: {resp.url} | Body: {resp.text}")
     except Exception as exc:
         log.warning(f"Erreur traduction : {exc}")
 
@@ -1611,6 +1613,8 @@ async def _translate_matn_ar_to_fr(
                 resp.json().get("content", [{}])[0].get("text", "").strip()
             )
             return result or MISSING
+        else:
+            log.error(f"ANTHROPIC FAILURE {resp.status_code} | URL: {resp.url} | Body: {resp.text}")
     except Exception as exc:
         log.warning(f"Erreur traduction matn : {exc}")
 
@@ -1705,7 +1709,7 @@ async def _enrich_via_claude(
         return blank
 
     if resp.status_code != 200:
-        log.warning(f"Erreur enrich Claude HTTP {resp.status_code}")
+        log.error(f"ANTHROPIC FAILURE {resp.status_code} | URL: {resp.url} | Body: {resp.text}")
         return blank
 
     try:
@@ -1809,6 +1813,7 @@ async def _run_takhrij(query: str) -> dict[str, Any]:
         timeout=httpx.Timeout(30.0, connect=6.0),
         headers={"User-Agent": "Mozilla/5.0 (AlMizan/24.0; Hadith Science)"},
         follow_redirects=True,
+        trust_env=False,
     ) as client:
 
         query_original = query.strip()
@@ -2022,6 +2027,7 @@ async def _stream_takhrij(query: str) -> AsyncGenerator[str, None]:
         timeout=httpx.Timeout(30.0, connect=6.0),
         headers={"User-Agent": "Mozilla/5.0 (AlMizan/24.0)"},
         follow_redirects=True,
+        trust_env=False,
     ) as client:
 
         # TRADUCTION ───────────────────────────────────────────────────────
