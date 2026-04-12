@@ -1515,13 +1515,12 @@ async def _translate_query_fr_to_ar(
         log.warning("ANTHROPIC_API_KEY manquante — traduction ignorée")
         return query_fr
 
-    prompt = (
+    system_prompt = (
         "Tu es un traducteur spécialisé en arabe classique (fusha) pour la "
         "recherche de hadiths dans la base de données Dorar.net. "
         "Traduis UNIQUEMENT la requête ci-dessous en mots arabes adaptés à une "
         "recherche hadith. "
-        "Retourne UNIQUEMENT les mots arabes, sans explication ni ponctuation.\n\n"
-        f"Requête : {query_fr}"
+        "Retourne UNIQUEMENT les mots arabes, sans explication ni ponctuation."
     )
 
     try:
@@ -1535,7 +1534,8 @@ async def _translate_query_fr_to_ar(
             json={
                 "model": ANTHROPIC_MODEL,
                 "max_tokens": 150,
-                "messages": [{"role": "user", "content": prompt}],
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": f"Requête : {query_fr}"}],
             },
             timeout=TIMEOUT_CLAUDE,
         )
@@ -1649,7 +1649,7 @@ async def _enrich_via_claude(
     if not api_key or not ar_text:
         return blank
 
-    prompt = (
+    system_prompt = (
         "Tu es un savant du hadith travaillant pour Mîzân as-Sunnah, "
         "projet de science du hadith présenté à Médine.\n\n"
         "╔══════════════════════════════════════════════════════════════════╗\n"
@@ -1667,7 +1667,10 @@ async def _enrich_via_claude(
         "║    « peut-être », « il semble », « on peut dire ».              ║\n"
         "║  • Aucun texte hors du JSON (pas de markdown, pas de commentaire)║\n"
         "║  • Chaque valeur absente ou incertaine = chaîne vide \"\"         ║\n"
-        "╚══════════════════════════════════════════════════════════════════╝\n\n"
+        "╚══════════════════════════════════════════════════════════════════╝"
+    )
+
+    user_content = (
         f"Hadith arabe :\n{ar_text}\n\n"
         f"Grade selon les muhaddithîn : {hukm_fr or 'non spécifié'}\n"
         f"Rapporté par : {savant or 'non spécifié'}\n"
@@ -1690,9 +1693,10 @@ async def _enrich_via_claude(
             },
             json={
                 "model":       ANTHROPIC_MODEL,
-                "max_tokens":  600,
+                "max_tokens":  1024,
                 "temperature": 0.0,  # Verrou déterministe
-                "messages":    [{"role": "user", "content": prompt}],
+                "system":      system_prompt,
+                "messages":    [{"role": "user", "content": user_content}],
             },
             timeout=TIMEOUT_CLAUDE,
         )
