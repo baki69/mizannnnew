@@ -1,3 +1,4 @@
+const { getHadithGrade } = require('./hadith_grade_engine_v3');
 /* ═══════════════════════════════════════════════════════════════════
    MÎZÂN v21.0 — engine.js — FINAL DELIVERABLE
    Triple Bouclier :
@@ -102,80 +103,25 @@ var _RE_SAHIH = /صحيح|حسن|جيّد|جيد|ثابت|إسناده صالح|
  *           Niveau 4 (gris) si AUCUN match — JAMAIS de vert par défaut
  */
 function _getTechnicalGrade(gradeStr) {
-  var g = gradeStr || '';
-
-  /* BOUCLIER SCIENCE — WHITELIST SAHIH : court-circuit prioritaire */
-  for (var _wi = 0; _wi < _SAHIH_WHITELIST.length; _wi++) {
-    if (g.indexOf(_SAHIH_WHITELIST[_wi]) !== -1) {
-      return {
-        key:      'SAHIH',
-        labelFr:  'SAHIH — AUTHENTIQUE (MUTTAFAQUN ʿALAYH)',
-        labelAr:  'صحيح',
-        color:    '#22c55e',
-        colorBg:  'rgba(34,197,94,.06)',
-        colorBd:  'rgba(34,197,94,.2)',
-        iconClr:  '#22c55e',
-        cssClass: 'v-SAHIH'
-      };
-    }
-  }
-
-  /* NIVEAU 1 — ALERTE ROUGE : rejet absolu */
-  if (_RE_MAWDU.test(g)) {
-    return {
-      key:      'MAWDU',
-      labelFr:  "REJET\u00c9 \u2014 CE N'EST PAS UN HADITH (MUNKAR / MAWDU')",
-      labelAr:  '\u0645\u0648\u0636\u0648\u0639 \u2014 \u0645\u0646\u0643\u0631',
-      color:    '#e63946',
-      colorBg:  'rgba(230,57,70,.07)',
-      colorBd:  'rgba(230,57,70,.25)',
-      iconClr:  '#e63946',
-      cssClass: 'v-MAWDU'
-    };
-  }
-
-  /* NIVEAU 2 — ALERTE ORANGE : faiblesse */
-  if (_RE_DAIF.test(g)) {
-    return {
-      key:      'DAIF',
-      labelFr:  "DA'IF \u2014 FAIBLE",
-      labelAr:  '\u0636\u0639\u064a\u0641',
-      color:    '#f59e0b',
-      colorBg:  'rgba(245,158,11,.06)',
-      colorBd:  'rgba(245,158,11,.22)',
-      iconClr:  '#f59e0b',
-      cssClass: 'v-DAIF'
-    };
-  }
-
-  /* NIVEAU 3 — VALIDATION VERTE : authentique */
-  if (_RE_SAHIH.test(g)) {
-    var isHasan = /حسن/.test(g) && !/صحيح/.test(g);
-    return {
-      key:      isHasan ? 'HASAN' : 'SAHIH',
-      labelFr:  isHasan ? 'HASAN \u2014 BON' : 'SAHIH \u2014 AUTHENTIQUE',
-      labelAr:  isHasan ? '\u062d\u0633\u0646' : '\u0635\u062d\u064a\u062d',
-      color:    isHasan ? '#4ade80' : '#22c55e',
-      colorBg:  isHasan ? 'rgba(74,222,128,.05)' : 'rgba(34,197,94,.06)',
-      colorBd:  isHasan ? 'rgba(74,222,128,.18)' : 'rgba(34,197,94,.2)',
-      iconClr:  isHasan ? '#4ade80' : '#22c55e',
-      cssClass: isHasan ? 'v-HASAN' : 'v-SAHIH'
-    };
-  }
-
-  /* NIVEAU 4 — DA'IF PRÉSUMÉ : tout verdict non classifiable → orange
-     Règle doctrinale : absence de Tawthiq = présomption de Da'if.
-     "L'authenticité ne se présume pas, elle se prouve." (Ibn al-Salah)
-     JAMAIS de gris, JAMAIS de "Non identifié" */
+  var r = getHadithGrade(gradeStr);
+  var cssMap = {
+    SAHIH:'v-SAHIH', HASAN:'v-HASAN', GHARIB:'v-GHARIB',
+    DAIF:'v-DAIF', MUNKAR:'v-MUNKAR', MAWDU:'v-MAWDU',
+    UNDETERMINED:'v-UNDETERMINED'
+  };
   return {
-    key:      'DAIF',
-    labelFr:  "DA'IF — STATUT NON CONFIRM\u00c9 (CONSULTER AL-ALBANI)",
-    labelAr:  '\u0636\u0639\u064a\u0641 \u2014 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f',
-    color:    '#f59e0b',
-    colorBg:  'rgba(245,158,11,.06)',
-    colorBd:  'rgba(245,158,11,.22)',
-    iconClr:  '#f59e0b',
-    cssClass: 'v-DAIF'
+    key:            r.grade,
+    labelFr:        r.labelFr,
+    labelAr:        r.labelAr,
+    color:          r.color,
+    colorBg:        r.color + '18',
+    colorBd:        r.color + '44',
+    iconClr:        r.color,
+    cssClass:       cssMap[r.grade] || 'v-UNDETERMINED',
+    icon:           r.icon,
+    level:          r.level,
+    requiresReview: r.requiresReview,
+    matchedTerm:    r.matchedTerm
   };
 }
 
