@@ -1138,7 +1138,7 @@ function _renderDorarCards(rawHadiths, query) {
     + '<span class="mz-source-text">' + rawHadiths.length + ' R\u00c9SULTAT(S) \u00b7 DORAR.NET \u00b7 AL MIZ\u00c2N</span></div>';
 
   rawHadiths.forEach(function(r, idx) {
-    var gradeRaw = r.grade || '';
+    var gradeRaw = r.grade_ar || r.grade || '';
     var tg = _getTechnicalGrade(gradeRaw);
     var metaStr = '';
     if (r.savant && r.savant !== '\u2014') metaStr += '\u0627\u0644\u0645\u062d\u062f\u062b\u202f: ' + r.savant;
@@ -1403,7 +1403,7 @@ async function _searchDorarTopic(query) {
             /* ── Fallback sans event name ────────────────────── */
             if (!evtName) {
               if (msg && msg.step) { _advanceStep((msg.step || '').toUpperCase()); continue; }
-              if (Array.isArray(msg) && msg.length && msg[0] && (msg[0].arabic_text || msg[0].ar)) {
+              if (!dorarOK && Array.isArray(msg) && msg.length && msg[0] && (msg[0].arabic_text || msg[0].ar)) {
                 _renderDorarCards(msg, query); dorarOK = true; _advanceStep('TAKHRIJ'); continue;
               }
               if (msg && msg.index !== undefined && msg.data) {
